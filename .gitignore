@@ -1,0 +1,97 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+
+# === Java build output ===
+build/
+.gradle/
+out/
+*.class
+
+# === Logs ===
+*.log
+hs_err_pid*
+replay_pid*
+
+# === IDE och miljöfiler ===
+*.iml
+.idea/
+*.iws
+*.ipr
+*.launch
+.settings/
+.project
+.classpath
+
+# === Archive/artifact files ===
+*.war
+*.nar
+*.ear
+*.tar.gz
+*.rar
+
+# === BlueJ ===
+*.ctxt
+
+# === MTJ (Mobile Tools for Java) ===
+.mtj.tmp/
+
+# === Lokala kataloger du verkar använda ===
+/rapportkalender/
+/debug/
+
+# === OS-specifika filer ===
+.DS_Store
+Thumbs.db
+
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+/.gradle/
+
+/rapportkalender/
+/debug/
+/frontend/node_modules/
+/frontend/dist/
+/bin/
+/db/
+
+# generated frontend assets
+src/main/resources/static/**
+!src/main/resources/static/.gitkeep
