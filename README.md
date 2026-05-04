@@ -4,6 +4,7 @@
 
 `bootlens-client-spring-boot-starter` adds BootLens-specific actuator diagnostics to a Spring Boot application.
 The first implementation provides a custom `bootlensDiagnostics` actuator endpoint that exposes richer JVM diagnostics backed by the platform `MBeanServer` and the HotSpot `DiagnosticCommand` MBean when available.
+It also auto-registers the application with BootLens Server and sends periodic heartbeats by default.
 
 ## Current Scope
 
@@ -11,12 +12,11 @@ The first implementation provides a custom `bootlensDiagnostics` actuator endpoi
 - Conservative defaults for sensitive and expensive diagnostics
 - Output sanitization and truncation
 - Optional heap dump creation and safe download support
-- No BootLens server registration yet
+- Auto-registration and heartbeat support
 - No security yet
 
 Planned later:
 
-- auto-registration
 - startup diagnostics
 - config risk analysis
 - deeper thread analysis
@@ -42,7 +42,7 @@ dependencies {
 
 or publish/install it and depend on the artifact from your build.
 
-## Properties
+## Diagnostics Properties
 
 Prefix:
 
@@ -90,6 +90,67 @@ bootlens.client.diagnostics.heap-dump.max-files=3
 bootlens.client.diagnostics.heap-dump.max-age=PT1H
 bootlens.client.diagnostics.heap-dump.allow-download=true
 ```
+
+## Registration Properties
+
+Prefix:
+
+`bootlens.client.registration`
+
+Available properties:
+
+- `enabled=true`
+- `server-url=http://localhost:9090`
+- `app-id=`
+- `app-name=`
+- `instance-id=`
+- `display-name=`
+- `base-url=`
+- `actuator-base-url=`
+- `environment=`
+- `region=`
+- `team=`
+- `zone=`
+- `slot=`
+- `heartbeat-interval=PT10S`
+- `register-on-startup=true`
+- `deregister-on-shutdown=true`
+- `labels.*=...`
+
+Defaults are resolved conservatively:
+
+- `app-name` falls back to `spring.application.name`
+- `app-id` is derived from `app-name` using kebab-case normalization
+- `instance-id` falls back to `appId-hostname-port`
+- `base-url` falls back to `http://localhost:${server.port}`
+- `actuator-base-url` falls back to `http://localhost:${management.server.port or server.port}/actuator`
+- `environment` falls back to the first active Spring profile, otherwise `local`
+
+Example:
+
+```properties
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=http://localhost:9090
+bootlens.client.registration.app-id=bootlens-demo
+bootlens.client.registration.app-name=BootLens Demo
+bootlens.client.registration.instance-id=bootlens-demo-app-local-${server.port}
+bootlens.client.registration.base-url=http://localhost:${server.port}
+bootlens.client.registration.actuator-base-url=http://localhost:${server.port}/actuator
+bootlens.client.registration.environment=local
+bootlens.client.registration.region=eu-local
+bootlens.client.registration.team=platform
+bootlens.client.registration.heartbeat-interval=PT10S
+```
+
+When the application becomes ready, the starter:
+
+1. registers with `POST /api/registry/instances`
+2. sends heartbeats to `POST /api/registry/instances/{instanceId}/heartbeat`
+3. attempts `DELETE /api/registry/instances/{instanceId}` on shutdown when enabled
+
+Registration and heartbeats are best effort. If BootLens Server is unavailable, the application keeps running and the next heartbeat cycle retries automatically.
+
+BootLens Server controls online/offline visibility using its own registry policies, for example heartbeat TTL and offline retention.
 
 ## Endpoint Exposure
 
@@ -143,3 +204,4 @@ curl -O http://localhost:9091/actuator/bootlensDiagnostics/heap-dumps/{id}
 - For local debugging, you can explicitly enable classpath output with `bootlens.client.diagnostics.include-classpath=true`.
 - Heap dump download is only available for heap dumps created by BootLens and only when `bootlens.client.diagnostics.heap-dump.allow-download=true`.
 - The starter does not change standard Spring Boot Actuator behavior for existing endpoints.
+- Registration and heartbeat calls are best effort and do not fail application startup if BootLens Server is unavailable.
