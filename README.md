@@ -32,6 +32,10 @@ cd /c/ws/git/bootlens-client-spring-boot-starter
 
 ## How To Add It To A Spring Boot App
 
+If you want a full server-plus-client walkthrough, start here:
+
+- [BootLens server quick start](../bootlens-server/README.md#quick-start-run-bootlens-server-and-connect-your-first-client)
+
 Add the starter as a dependency:
 
 ```gradle
