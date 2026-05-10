@@ -22,7 +22,21 @@ Planned later:
 - deeper thread analysis
 - safe runtime operations
 
-## Build And Run
+## License
+
+This repository is published under the Apache License 2.0. See
+[LICENSE](./LICENSE).
+
+## Requirements
+
+- Java 25
+- Spring Boot 4.0.6 baseline
+- A build that can authenticate to GitHub Packages when consuming the published artifact
+
+This starter is currently built and tested against the Spring Boot 4.0.6 BOM
+and uses a Java 25 toolchain in its own build.
+
+## Build And Run Locally
 
 ```bash
 cd /c/ws/git/bootlens-client-spring-boot-starter
@@ -115,9 +129,13 @@ $env:BOOTLENS_VERSION = '0.1.0-rc1'
 .\gradlew.bat publishToMavenLocal
 ```
 
-### Consuming the package from another Gradle build
+## Quick Start For Consumers
 
-Add the GitHub Packages repository:
+If you just want to get a client connected quickly, follow the five steps in
+this section first. The later sections are a fuller reference for properties,
+operations, and safety behavior.
+
+### 1. Add the GitHub Packages repository
 
 ```gradle
 repositories {
@@ -132,13 +150,20 @@ repositories {
 }
 ```
 
-Then add the dependency:
+GitHub Packages consumption may still require credentials even when this source
+repository is public. For friction-free anonymous Java dependency consumption,
+Maven Central would be the better long-term distribution target.
+
+### 2. Add the dependency
 
 ```gradle
 dependencies {
     implementation "com.bootlens:bootlens-client-spring-boot-starter:0.1.0"
 }
 ```
+
+Use the package version, for example `0.1.0` or `0.1.0-rc2`. Do not use the
+Git tag form with the `v` prefix.
 
 If you want the build to avoid hardcoded secrets, prefer:
 
@@ -150,13 +175,52 @@ or Gradle properties:
 - `gpr.user`
 - `gpr.key`
 
-## How To Add It To A Spring Boot App
+### 3. Expose the required actuator endpoints
 
-If you want a full server-plus-client walkthrough, start here:
+```properties
+management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump,bootlensDiagnostics
+```
+
+### 4. Configure BootLens registration
+
+```properties
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=https://your-bootlens-server.example
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+bootlens.client.registration.app-id=bootlens-demo
+bootlens.client.registration.app-name=BootLens Demo
+bootlens.client.registration.instance-id=bootlens-demo-${server.port}
+bootlens.client.registration.base-url=https://your-app.example
+bootlens.client.registration.actuator-base-url=https://your-app.example/actuator
+bootlens.client.registration.environment=prod
+```
+
+For the full registration property reference, defaults, and behavior notes, see
+[Registration Properties](#registration-properties) below.
+
+### 5. Start the application and verify registration
+
+When the application becomes ready, the starter:
+
+1. registers with `POST /api/registry/instances`
+2. sends heartbeats to `POST /api/registry/instances/{instanceId}/heartbeat`
+3. attempts `DELETE /api/registry/instances/{instanceId}` on shutdown when enabled
+
+Registration and heartbeats are best effort. If BootLens Server is unavailable,
+the application keeps running and the next heartbeat cycle retries
+automatically.
+
+For diagnostic property details and safety defaults, see
+[Diagnostics Properties](#diagnostics-properties) and [Safety Notes](#safety-notes).
+
+## Local Development Usage
+
+If you are working on BootLens locally across sibling repos, start here:
 
 - [BootLens server quick start](../bootlens-server/README.md#quick-start-run-bootlens-server-and-connect-your-first-client)
 
-Add the starter as a dependency:
+For a composite local setup, you can use the starter as a project dependency:
 
 ```gradle
 dependencies {
@@ -191,7 +255,7 @@ Available properties:
 - `heap-dump.max-age=PT1H`
 - `heap-dump.allow-download=false`
 
-Example:
+Minimal example:
 
 ```properties
 management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump,bootlensDiagnostics
@@ -252,7 +316,7 @@ Defaults are resolved conservatively:
 - `actuator-base-url` falls back to `http://localhost:${management.server.port or server.port}/actuator`
 - `environment` falls back to the first active Spring profile, otherwise `local`
 
-Example:
+Reference example:
 
 ```properties
 bootlens.client.registration.enabled=true
@@ -270,13 +334,12 @@ bootlens.client.registration.team=platform
 bootlens.client.registration.heartbeat-interval=PT10S
 ```
 
-When the application becomes ready, the starter:
+Runtime behavior:
 
-1. registers with `POST /api/registry/instances`
-2. sends heartbeats to `POST /api/registry/instances/{instanceId}/heartbeat`
-3. attempts `DELETE /api/registry/instances/{instanceId}` on shutdown when enabled
-
-Registration and heartbeats are best effort. If BootLens Server is unavailable, the application keeps running and the next heartbeat cycle retries automatically.
+- the client registers on application readiness when `register-on-startup=true`
+- it sends periodic heartbeats using `heartbeat-interval`
+- it attempts deregistration on shutdown when `deregister-on-shutdown=true`
+- registration and heartbeat calls are best effort; BootLens server outages do not fail application startup
 
 BootLens Server controls online/offline visibility using its own registry policies, for example heartbeat TTL and offline retention.
 

@@ -7,6 +7,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
+/**
+ * Auto-configuration for the BootLens diagnostics actuator endpoint and its
+ * supporting services.
+ */
 @AutoConfiguration
 @EnableConfigurationProperties(BootLensDiagnosticsProperties.class)
 @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "enabled", havingValue = "true", matchIfMissing = true)

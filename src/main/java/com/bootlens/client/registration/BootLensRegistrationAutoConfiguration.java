@@ -9,6 +9,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
+/**
+ * Auto-configuration for BootLens client registration and heartbeat support.
+ */
 @AutoConfiguration
 @EnableConfigurationProperties(BootLensRegistrationProperties.class)
 @ConditionalOnProperty(prefix = "bootlens.client.registration", name = "enabled", havingValue = "true", matchIfMissing = true)

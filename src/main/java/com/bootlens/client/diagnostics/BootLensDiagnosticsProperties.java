@@ -4,6 +4,13 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * Configuration properties for the BootLens diagnostics actuator endpoint.
+ *
+ * <p>The defaults intentionally favor safe runtime behavior for a public starter:
+ * sensitive output stays blocked, classpath output stays hidden, and heap dump
+ * creation/download requires explicit opt-in.</p>
+ */
 @ConfigurationProperties(prefix = "bootlens.client.diagnostics")
 public class BootLensDiagnosticsProperties {
 
@@ -103,6 +110,9 @@ public class BootLensDiagnosticsProperties {
         return heapDump;
     }
 
+    /**
+     * Heap dump-specific controls for the BootLens diagnostics endpoint.
+     */
     public static class HeapDump {
 
         private boolean enabled = false;

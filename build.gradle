@@ -45,6 +45,7 @@ dependencies {
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-web'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -77,9 +78,17 @@ publishing {
 
 				licenses {
 					license {
-						name = 'Proprietary'
-						url = scmRepositoryUrl
+						name = 'Apache License, Version 2.0'
+						url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
 						distribution = 'repo'
+					}
+				}
+
+				developers {
+					developer {
+						id = githubPackagesOwner ?: 'bootlens'
+						name = githubPackagesOwner ?: 'BootLens'
+						url = scmRepositoryUrl
 					}
 				}
 
