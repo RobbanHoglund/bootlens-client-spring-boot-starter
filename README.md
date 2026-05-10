@@ -183,6 +183,14 @@ management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump
 
 ### 4. Configure BootLens registration
 
+Important before you copy the example:
+
+- `username` is the BootLens **registrant account**, not your application name
+  and not a human viewer/operator/admin login
+- `server-url` must be reachable from the monitored application
+- `base-url` and `actuator-base-url` should be real externally or internally
+  reachable URLs for the monitored application in its deployed environment
+
 ```properties
 bootlens.client.registration.enabled=true
 bootlens.client.registration.server-url=https://your-bootlens-server.example
@@ -198,6 +206,42 @@ bootlens.client.registration.environment=prod
 
 For the full registration property reference, defaults, and behavior notes, see
 [Registration Properties](#registration-properties) below.
+
+### 4a. Example: app and BootLens inside the same private Railway network
+
+```properties
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:8080
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+bootlens.client.registration.app-id=trading-bot
+bootlens.client.registration.app-name=Trading Bot
+bootlens.client.registration.instance-id=trading-bot-${HOSTNAME}
+bootlens.client.registration.base-url=https://trading-bot-production.up.railway.app
+bootlens.client.registration.actuator-base-url=https://trading-bot-production.up.railway.app/actuator
+bootlens.client.registration.environment=prod
+```
+
+Use an internal `server-url` only when the monitored application can actually
+resolve and reach that internal BootLens hostname.
+
+### 4b. Example: app outside the BootLens private network
+
+```properties
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=https://bootlens.example.com
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+bootlens.client.registration.app-id=trading-bot
+bootlens.client.registration.app-name=Trading Bot
+bootlens.client.registration.instance-id=trading-bot-${HOSTNAME}
+bootlens.client.registration.base-url=https://trading-bot.example.com
+bootlens.client.registration.actuator-base-url=https://trading-bot.example.com/actuator
+bootlens.client.registration.environment=prod
+```
+
+Use the public BootLens URL when the monitored application is not inside the
+same private network as the BootLens server.
 
 ### 5. Start the application and verify registration
 
@@ -306,6 +350,19 @@ Available properties:
 - `register-on-startup=true`
 - `deregister-on-shutdown=true`
 - `labels.*=...`
+
+Operational guidance:
+
+- `username` should be the BootLens machine registrant account, not the
+  application name
+- `server-url` points to the BootLens server, not to the monitored app
+- `base-url` should be the deployed application base URL users or operators
+  would use
+- `actuator-base-url` should be the actual deployed actuator base URL that
+  BootLens can reach
+- avoid localhost-style fallbacks in hosted environments unless the monitored
+  app and its actuator are intentionally only reachable inside the same
+  container or pod
 
 Defaults are resolved conservatively:
 
