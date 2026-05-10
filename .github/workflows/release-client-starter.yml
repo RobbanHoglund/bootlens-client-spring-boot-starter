@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   tag-release:
@@ -67,17 +68,42 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
 
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          BOOTLENS_VERSION: ${{ steps.version.outputs.version }}
+        run: ./gradlew publish -PbootlensVersion=${BOOTLENS_VERSION}
+
       - name: Push release tag
         shell: bash
         run: git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          TITLE="BootLens client starter ${{ steps.version.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub release for $TAG already exists. Skipping creation."
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --title "$TITLE" \
+            --generate-notes
 
       - name: Write release summary
         shell: bash
         run: |
           {
-            echo "## BootLens client starter release queued"
+            echo "## BootLens client starter released"
             echo ""
             echo "- Version: \`${{ steps.version.outputs.version }}\`"
             echo "- Tag: \`${{ steps.version.outputs.tag }}\`"
-            echo "- Next step: the \`Publish BootLens client starter\` workflow will publish the package from the pushed tag."
+            echo "- Package: \`com.bootlens:bootlens-client-spring-boot-starter:${{ steps.version.outputs.version }}\`"
+            echo "- GitHub Release: created or reused for tag \`${{ steps.version.outputs.tag }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
