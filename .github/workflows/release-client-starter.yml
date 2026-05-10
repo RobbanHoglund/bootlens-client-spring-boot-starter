@@ -53,6 +53,9 @@ jobs:
           distribution: temurin
           java-version: '25'
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Run tests before tagging
         run: ./gradlew test
 
