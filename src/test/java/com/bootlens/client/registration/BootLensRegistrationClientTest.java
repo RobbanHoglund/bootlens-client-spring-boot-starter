@@ -2,9 +2,14 @@ package com.bootlens.client.registration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.charset.StandardCharsets;
+import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -97,18 +102,105 @@ class BootLensRegistrationClientTest {
         );
     }
 
+    @Test
+    void registrationAuthHeaderUsesConfiguredCredentials() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setUsername("registrant");
+        properties.setPassword("registrant-local");
+        MockEnvironment environment = new MockEnvironment().withProperty("server.port", "9091");
+        CapturingTransport transport = new CapturingTransport();
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            transport,
+            FIXED_CLOCK
+        );
+
+        client.register();
+
+        assertThat(transport.lastAuthorizationHeader).isEqualTo(
+            "Basic " + Base64.getEncoder().encodeToString("registrant:registrant-local".getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    @Test
+    void registrationMetadataIncludesRuntimeAndOperationalTags() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setEnvironment("local");
+        properties.setRegion("eu-local");
+        properties.setTeam("platform");
+        properties.setZone("lab-a");
+        properties.setSlot("primary");
+        properties.setLabels(Map.of("tier", "backend", "topology", "single-instance"));
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("server.port", "9091")
+            .withProperty("demo.cache.backend", "caffeine")
+            .withProperty("spring.application.name", "Spinning Threads App")
+            .withProperty("spring.profiles.active", "local");
+        environment.setActiveProfiles("local");
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            new CapturingTransport(),
+            FIXED_CLOCK
+        );
+
+        BootLensRegistrationRequest request = client.buildRegistrationRequest();
+
+        assertThat(request.metadata()).containsKeys(
+            "startedAt",
+            "uptimeMs",
+            "pid",
+            "gcNames",
+            "gcFamily",
+            "runtimeVmName",
+            "runtimeVmVendor",
+            "runtimeVmVersion",
+            "availableProcessors",
+            "cacheBackend",
+            "tags"
+        );
+        assertThat(request.metadata().get("cacheBackend")).isEqualTo("caffeine");
+        assertThat(request.metadata().get("tags")).contains("env=local");
+        assertThat(request.metadata().get("tags")).contains("region=eu-local");
+        assertThat(request.metadata().get("tags")).contains("team=platform");
+        assertThat(request.metadata().get("tags")).contains("cache=caffeine");
+        assertThat(request.metadata().get("tags")).contains("java=");
+    }
+
+    @Test
+    void infersSerialGcFamilyFromCopyAndMarkSweepCompactCollectors() throws Exception {
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            new BootLensRegistrationProperties(),
+            new MockEnvironment().withProperty("server.port", "9091"),
+            new CapturingTransport(),
+            FIXED_CLOCK
+        );
+
+        Method inferGcFamily = BootLensRegistrationClient.class.getDeclaredMethod("inferGcFamily", List.class);
+        inferGcFamily.setAccessible(true);
+
+        String gcFamily = (String) inferGcFamily.invoke(client, List.of("Copy", "MarkSweepCompact"));
+
+        assertThat(gcFamily).isEqualTo("Serial");
+    }
+
     private static final class CapturingTransport implements RegistrationTransport {
 
         private String lastPostUrl;
+        private String lastAuthorizationHeader;
 
         @Override
-        public RegistrationCallResult post(String url, String jsonBody) {
+        public RegistrationCallResult post(String url, String jsonBody, String authorizationHeader) {
             this.lastPostUrl = url;
+            this.lastAuthorizationHeader = authorizationHeader;
             return RegistrationCallResult.success(200);
         }
 
         @Override
-        public RegistrationCallResult delete(String url) {
+        public RegistrationCallResult delete(String url, String authorizationHeader) {
             return RegistrationCallResult.success(204);
         }
     }

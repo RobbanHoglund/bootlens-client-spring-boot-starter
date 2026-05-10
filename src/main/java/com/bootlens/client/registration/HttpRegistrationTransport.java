@@ -24,22 +24,30 @@ final class HttpRegistrationTransport implements RegistrationTransport {
     }
 
     @Override
-    public RegistrationCallResult post(String url, String jsonBody) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+    public RegistrationCallResult post(String url, String jsonBody, String authorizationHeader) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
             .timeout(REQUEST_TIMEOUT)
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-            .build();
+            .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
+        applyAuthorization(builder, authorizationHeader);
+        HttpRequest request = builder.build();
         return send(request);
     }
 
     @Override
-    public RegistrationCallResult delete(String url) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+    public RegistrationCallResult delete(String url, String authorizationHeader) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
             .timeout(Duration.ofSeconds(2))
-            .DELETE()
-            .build();
+            .DELETE();
+        applyAuthorization(builder, authorizationHeader);
+        HttpRequest request = builder.build();
         return send(request);
+    }
+
+    private void applyAuthorization(HttpRequest.Builder builder, String authorizationHeader) {
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            builder.header("Authorization", authorizationHeader);
+        }
     }
 
     private RegistrationCallResult send(HttpRequest request) throws IOException, InterruptedException {

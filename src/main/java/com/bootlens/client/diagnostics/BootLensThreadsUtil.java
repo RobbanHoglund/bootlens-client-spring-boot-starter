@@ -25,7 +25,7 @@ public final class BootLensThreadsUtil {
         for (String block : blocks) {
             BootLensThreadInfo info = parseThreadBlock(block);
             if (info != null) {
-                threads.put(info.name(), info);
+                threads.merge(info.name(), info, BootLensThreadsUtil::preferRicherThreadInfo);
             }
         }
         return threads;
@@ -121,6 +121,25 @@ public final class BootLensThreadsUtil {
         String state = extractThreadState(stackLines);
 
         return new BootLensThreadInfo(name, threadId, state, virtualThread, daemon, false, header, List.copyOf(stackLines));
+    }
+
+    private static BootLensThreadInfo preferRicherThreadInfo(
+        BootLensThreadInfo existing,
+        BootLensThreadInfo candidate
+    ) {
+        boolean existingHasThreadId = existing.threadId() >= 0;
+        boolean candidateHasThreadId = candidate.threadId() >= 0;
+        if (existingHasThreadId != candidateHasThreadId) {
+            return existingHasThreadId ? existing : candidate;
+        }
+
+        int existingStackDepth = existing.stackLines() == null ? 0 : existing.stackLines().size();
+        int candidateStackDepth = candidate.stackLines() == null ? 0 : candidate.stackLines().size();
+        if (existingStackDepth != candidateStackDepth) {
+            return existingStackDepth >= candidateStackDepth ? existing : candidate;
+        }
+
+        return existing.header().length() >= candidate.header().length() ? existing : candidate;
     }
 
     private static String extractThreadState(Collection<String> lines) {

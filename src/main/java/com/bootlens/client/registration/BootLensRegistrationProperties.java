@@ -6,11 +6,21 @@ import java.util.Map;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * Client-side registration settings for connecting an application instance to a
+ * BootLens server.
+ *
+ * <p>The RC security slice extends this configuration with optional credentials
+ * so registration, heartbeat, and deregistration calls can authenticate
+ * against a protected BootLens API.</p>
+ */
 @ConfigurationProperties(prefix = "bootlens.client.registration")
 public class BootLensRegistrationProperties {
 
     private boolean enabled = true;
     private String serverUrl = "http://localhost:9090";
+    private String username;
+    private String password;
     private String appId;
     private String appName;
     private String instanceId;
@@ -41,6 +51,34 @@ public class BootLensRegistrationProperties {
 
     public void setServerUrl(String serverUrl) {
         this.serverUrl = serverUrl;
+    }
+
+    /**
+     * Username used when a secured BootLens server requires authenticated
+     * registration and heartbeat calls.
+     *
+     * @return the HTTP Basic username to use for BootLens registry calls
+     */
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    /**
+     * Password used when a secured BootLens server requires authenticated
+     * registration and heartbeat calls.
+     *
+     * @return the HTTP Basic password to use for BootLens registry calls
+     */
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getAppId() {

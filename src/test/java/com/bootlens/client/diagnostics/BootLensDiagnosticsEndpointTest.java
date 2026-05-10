@@ -72,6 +72,28 @@ class BootLensDiagnosticsEndpointTest {
     }
 
     @Test
+    void responsePreservesExecutionDetails() throws Exception {
+        BootLensDiagnosticsProperties properties = defaultProperties();
+        VmDiagnostics diagnostics = new VmDiagnostics(
+            (MBeanServer) null,
+            new ObjectName("com.sun.management:type=DiagnosticCommand"),
+            new SecretSanitizer(properties),
+            properties
+        ) {
+            @Override
+            DiagnosticExecutionResult run(BootLensDiagnosticOperation operation) {
+                return DiagnosticExecutionResult.success("ok", java.util.Map.of("threadDumpSource", "diagnostic-command"));
+            }
+        };
+
+        BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(properties, diagnostics, new HeapDumpManager(properties));
+        BootLensDiagnosticResponse response = endpoint.invoke("THREAD_DUMP");
+
+        assertThat(response.status()).isEqualTo(BootLensDiagnosticStatus.SUCCESS);
+        assertThat(response.details()).containsEntry("threadDumpSource", "diagnostic-command");
+    }
+
+    @Test
     void heapDumpIsDisabledByDefault() throws Exception {
         BootLensDiagnosticsProperties properties = defaultProperties();
         BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(properties, stubVmDiagnostics(), new HeapDumpManager(properties));

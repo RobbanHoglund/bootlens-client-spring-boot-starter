@@ -35,12 +35,12 @@ class BootLensRegistrationLifecycleTest {
     private static final class FailingDeleteTransport implements RegistrationTransport {
 
         @Override
-        public RegistrationCallResult post(String url, String jsonBody) {
+        public RegistrationCallResult post(String url, String jsonBody, String authorizationHeader) {
             return RegistrationCallResult.success(200);
         }
 
         @Override
-        public RegistrationCallResult delete(String url) throws IOException {
+        public RegistrationCallResult delete(String url, String authorizationHeader) throws IOException {
             throw new IOException("Connection refused");
         }
     }

@@ -2,7 +2,6 @@ package com.bootlens.client.diagnostics;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
 
-import java.io.IOException;
 import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.CompilationMXBean;
 import java.lang.management.GarbageCollectorMXBean;
@@ -14,6 +13,7 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.management.InstanceNotFoundException;
@@ -91,24 +92,24 @@ public class VmDiagnostics {
                 return createHeapDump();
             }
 
-            String output = switch (operation) {
-                case VM_FLAGS -> vmFlags();
-                case GC_CLASS_HISTOGRAM -> gcClassHistogram();
-                case THREAD_DUMP -> threadDump();
-                case THREAD_DUMP_VT -> threadDumpWithVirtualThreads();
-                case HEAP_INFO -> heapInfo();
+            DiagnosticExecutionResult result = switch (operation) {
+                case VM_FLAGS -> DiagnosticExecutionResult.success(sanitizeOutput(operation, vmFlags()));
+                case GC_CLASS_HISTOGRAM -> DiagnosticExecutionResult.success(sanitizeOutput(operation, gcClassHistogram()));
+                case THREAD_DUMP -> threadDumpResult();
+                case THREAD_DUMP_VT -> threadDumpWithVirtualThreadsResult();
+                case HEAP_INFO -> DiagnosticExecutionResult.success(sanitizeOutput(operation, heapInfo()));
                 case HEAP_DUMP -> throw new IllegalStateException("Heap dump handled separately");
-                case VM_INFORMATION -> vmInformation();
-                case COMMAND_LINE -> commandLine();
-                case METASPACE -> metaspace();
-                case SYSTEM_PROPERTIES -> systemProperties();
-                case VM_EVENTS -> vmEvents();
-                case CLASSES -> classes();
-                case VIRTUAL_THREADS_INFO -> virtualThreadsInfo();
-                case SECURITY_REPORT -> securityReport();
-                case ENV -> environment();
+                case VM_INFORMATION -> DiagnosticExecutionResult.success(sanitizeOutput(operation, vmInformation()));
+                case COMMAND_LINE -> DiagnosticExecutionResult.success(sanitizeOutput(operation, commandLine()));
+                case METASPACE -> DiagnosticExecutionResult.success(sanitizeOutput(operation, metaspace()));
+                case SYSTEM_PROPERTIES -> DiagnosticExecutionResult.success(sanitizeOutput(operation, systemProperties()));
+                case VM_EVENTS -> DiagnosticExecutionResult.success(sanitizeOutput(operation, vmEvents()));
+                case CLASSES -> DiagnosticExecutionResult.success(sanitizeOutput(operation, classes()));
+                case VIRTUAL_THREADS_INFO -> DiagnosticExecutionResult.success(sanitizeOutput(operation, virtualThreadsInfo()));
+                case SECURITY_REPORT -> DiagnosticExecutionResult.success(sanitizeOutput(operation, securityReport()));
+                case ENV -> DiagnosticExecutionResult.success(sanitizeOutput(operation, environment()));
             };
-            return DiagnosticExecutionResult.success(sanitizeOutput(operation, output));
+            return result;
         } catch (Exception exception) {
             logger.warn("BootLens diagnostics operation {} failed: {}", operation.name(), exception.getMessage());
             return DiagnosticExecutionResult.error(sanitizeOutput(operation, "Diagnostic execution failed: " + exception.getMessage()));
@@ -145,18 +146,22 @@ public class VmDiagnostics {
             .orElseGet(() -> classHistogramFallback());
     }
 
-    private String threadDump() {
-        String dump = properties.isThreadDumpToFile() ? threadDumpToTemporaryFile() : null;
-        if (dump == null || dump.isBlank()) {
-            dump = invokeDiagnosticCommand("threadPrint").orElseGet(this::threadDumpFallback);
-        }
-        return dump + System.lineSeparator() + System.lineSeparator() + BootLensThreadsUtil.getDeadlockInformation(dump);
+    private DiagnosticExecutionResult threadDumpResult() {
+        ThreadDumpCaptureOutcome outcome = captureThreadDumpText();
+        String dump = outcome.dumpText() + System.lineSeparator() + System.lineSeparator() + BootLensThreadsUtil.getDeadlockInformation(outcome.dumpText());
+        return DiagnosticExecutionResult.success(
+            sanitizeOutput(BootLensDiagnosticOperation.THREAD_DUMP, dump),
+            Map.of("threadDumpSource", outcome.source()));
     }
 
-    private String threadDumpWithVirtualThreads() {
-        String baseDump = threadDump();
+    private DiagnosticExecutionResult threadDumpWithVirtualThreadsResult() {
+        ThreadDumpCaptureOutcome outcome = captureThreadDumpText();
+        String baseDump = outcome.dumpText() + System.lineSeparator() + System.lineSeparator() + BootLensThreadsUtil.getDeadlockInformation(outcome.dumpText());
         String virtualThreadSection = buildVirtualThreadSection();
-        return BootLensThreadsUtil.mergeThreadDumpWithVTs(baseDump, virtualThreadSection);
+        String mergedDump = BootLensThreadsUtil.mergeThreadDumpWithVTs(baseDump, virtualThreadSection);
+        return DiagnosticExecutionResult.success(
+            sanitizeOutput(BootLensDiagnosticOperation.THREAD_DUMP_VT, mergedDump),
+            Map.of("threadDumpSource", outcome.source()));
     }
 
     private String heapInfo() {
@@ -385,6 +390,17 @@ public class VmDiagnostics {
         }
     }
 
+    private ThreadDumpCaptureOutcome captureThreadDumpText() {
+        Optional<String> diagnosticDump = invokeDiagnosticCommand("threadPrint", "-l");
+        if (diagnosticDump.isPresent() && !diagnosticDump.get().isBlank()) {
+            return new ThreadDumpCaptureOutcome(diagnosticDump.get(), "diagnostic-command");
+        }
+
+        logger.debug(
+            "DiagnosticCommand threadPrint -l was unavailable or returned no data; falling back to ThreadMXBean.dumpAllThreads(true, true).");
+        return new ThreadDumpCaptureOutcome(threadDumpFallback(), "mxbean-fallback");
+    }
+
     private String threadDumpFallback() {
         ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
         ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(true, true);
@@ -435,28 +451,6 @@ public class VmDiagnostics {
         }
     }
 
-    private String threadDumpToTemporaryFile() {
-        Path tempFile = null;
-        try {
-            tempFile = Files.createTempFile("bootlens-thread-dump-", ".txt");
-            String filePath = tempFile.toAbsolutePath().toString();
-            if (invokeDiagnosticCommand("threadDumpToFile", filePath).isPresent()) {
-                return Files.readString(tempFile);
-            }
-        } catch (IOException exception) {
-            logger.debug("BootLens thread dump temporary file handling failed: {}", exception.getMessage());
-        } finally {
-            if (tempFile != null) {
-                try {
-                    Files.deleteIfExists(tempFile);
-                } catch (IOException exception) {
-                    logger.debug("BootLens failed to delete temporary thread dump file {}: {}", tempFile, exception.getMessage());
-                }
-            }
-        }
-        return null;
-    }
-
     private String classHistogramFallback() {
         ClassLoadingMXBean classLoadingMXBean = ManagementFactory.getClassLoadingMXBean();
         return "Class histogram fallback is unavailable through DiagnosticCommand."
@@ -486,13 +480,13 @@ public class VmDiagnostics {
         return title + System.lineSeparator() + arguments.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
-    private java.util.Optional<String> invokeDiagnosticCommand(String operationName, String... arguments) {
+    private Optional<String> invokeDiagnosticCommand(String operationName, String... arguments) {
         try {
             if (!mBeanServer.isRegistered(diagnosticCommandObjectName)) {
-                return java.util.Optional.empty();
+                return Optional.empty();
             }
             if (!isOperationAvailable(operationName)) {
-                return java.util.Optional.empty();
+                return Optional.empty();
             }
 
             Object result = mBeanServer.invoke(
@@ -501,12 +495,12 @@ public class VmDiagnostics {
                 new Object[] { arguments },
                 new String[] { String[].class.getName() }
             );
-            return java.util.Optional.ofNullable(result).map(Object::toString);
+            return Optional.ofNullable(result).map(Object::toString);
         } catch (InstanceNotFoundException exception) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         } catch (JMException exception) {
             logger.debug("Diagnostic command {} failed: {}", operationName, exception.getMessage());
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
     }
 
@@ -539,5 +533,8 @@ public class VmDiagnostics {
         } catch (ReflectiveOperationException exception) {
             return false;
         }
+    }
+
+    private record ThreadDumpCaptureOutcome(String dumpText, String source) {
     }
 }
