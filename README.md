@@ -30,6 +30,114 @@ cd /c/ws/git/bootlens-client-spring-boot-starter
 ./gradlew build
 ```
 
+## Versioning And Publishing To GitHub Packages
+
+The starter can now be published as a versioned Maven package to GitHub
+Packages.
+
+### Coordinates
+
+- Group: `com.bootlens`
+- Artifact: `bootlens-client-spring-boot-starter`
+- Version: controlled by `-PbootlensVersion=...` or `BOOTLENS_VERSION`
+
+### Local publish command
+
+From the repo root:
+
+```powershell
+$env:GITHUB_ACTOR = '<your-github-username>'
+$env:GITHUB_TOKEN = '<your-github-packages-token>'
+$env:BOOTLENS_VERSION = '0.1.0'
+.\gradlew.bat publish `
+  -PgithubPackagesOwner=<github-owner> `
+  -PgithubPackagesRepository=bootlens-client-spring-boot-starter
+```
+
+Notes:
+
+- `GITHUB_TOKEN` must be able to write packages
+- the package is published to:
+  `https://maven.pkg.github.com/<github-owner>/<github-repository>`
+- if the repo is being built inside GitHub Actions, owner and repository can be
+  inferred automatically from the workflow environment
+
+### Publish from GitHub Actions
+
+This repo now includes:
+
+- [.github/workflows/release-client-starter.yml](./.github/workflows/release-client-starter.yml)
+- [.github/workflows/publish-github-packages.yml](./.github/workflows/publish-github-packages.yml)
+
+Supported publish paths:
+
+1. manual release workflow that creates and pushes a tag
+2. pushing a tag such as `v0.1.0` or `v0.1.0-rc1`
+
+Recommended release flow:
+
+1. merge the intended code to `main`
+2. run `Release BootLens client starter`
+3. enter a version such as `0.1.0` or `0.1.0-rc1`
+4. the workflow runs tests, creates tag `v<version>`, and pushes it
+5. the pushed tag triggers `Publish BootLens client starter`
+6. the publish workflow publishes the package to GitHub Packages
+
+The publish workflow:
+
+1. checks out the repo
+2. sets up Java 25
+3. runs `./gradlew test`
+4. publishes with `./gradlew publish -PbootlensVersion=<resolved-version>`
+
+Important:
+
+- a normal push to `main` does **not** publish a package
+- the package is published only from version tags
+- the manual release workflow exists so you do not have to create the tag locally
+
+### Publish to Maven local for quick verification
+
+```powershell
+$env:BOOTLENS_VERSION = '0.1.0-rc1'
+.\gradlew.bat publishToMavenLocal
+```
+
+### Consuming the package from another Gradle build
+
+Add the GitHub Packages repository:
+
+```gradle
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/<github-owner>/bootlens-client-spring-boot-starter")
+        credentials {
+            username = findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+    mavenCentral()
+}
+```
+
+Then add the dependency:
+
+```gradle
+dependencies {
+    implementation "com.bootlens:bootlens-client-spring-boot-starter:0.1.0"
+}
+```
+
+If you want the build to avoid hardcoded secrets, prefer:
+
+- `GITHUB_ACTOR`
+- `GITHUB_TOKEN`
+
+or Gradle properties:
+
+- `gpr.user`
+- `gpr.key`
+
 ## How To Add It To A Spring Boot App
 
 If you want a full server-plus-client walkthrough, start here:

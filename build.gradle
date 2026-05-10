@@ -1,11 +1,25 @@
 plugins {
 	id 'java-library'
+	id 'maven-publish'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.bootlens'
-version = '0.0.1-SNAPSHOT'
+version = findProperty('bootlensVersion') ?: System.getenv('BOOTLENS_VERSION') ?: '0.0.1-SNAPSHOT'
 description = 'BootLens client Spring Boot starter'
+
+def githubRepositorySlug = findProperty('githubRepository') ?: System.getenv('GITHUB_REPOSITORY')
+def githubRepositoryTokens = githubRepositorySlug ? githubRepositorySlug.tokenize('/') : []
+def githubPackagesOwner = findProperty('githubPackagesOwner') ?: System.getenv('GITHUB_REPOSITORY_OWNER') ?: (githubRepositoryTokens ? githubRepositoryTokens[0] : null)
+def githubPackagesRepository = findProperty('githubPackagesRepository') ?: (githubRepositoryTokens.size() > 1 ? githubRepositoryTokens[1] : rootProject.name)
+def githubPackagesUrl = (githubPackagesOwner && githubPackagesRepository)
+	? uri("https://maven.pkg.github.com/${githubPackagesOwner}/${githubPackagesRepository}")
+	: null
+def scmRepositoryUrl = (githubPackagesOwner && githubPackagesRepository)
+	? "https://github.com/${githubPackagesOwner}/${githubPackagesRepository}"
+	: 'https://github.com/bootlens/bootlens-client-spring-boot-starter'
+def scmConnectionUrl = scmRepositoryUrl.replace('https://github.com/', 'scm:git:https://github.com/') + '.git'
+def scmDeveloperConnectionUrl = scmRepositoryUrl.replace('https://github.com/', 'scm:git:ssh://git@github.com/') + '.git'
 
 java {
 	toolchain {
@@ -40,4 +54,54 @@ tasks.named('test') {
 
 tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs += ['-parameters']
+}
+
+publishing {
+	publications {
+		create('mavenJava', MavenPublication) {
+			from components.java
+			groupId = project.group
+			artifactId = project.name
+			version = project.version
+
+			versionMapping {
+				allVariants {
+					fromResolutionResult()
+				}
+			}
+
+			pom {
+				name = 'BootLens Client Spring Boot Starter'
+				description = project.description
+				url = scmRepositoryUrl
+
+				licenses {
+					license {
+						name = 'Proprietary'
+						url = scmRepositoryUrl
+						distribution = 'repo'
+					}
+				}
+
+				scm {
+					url = scmRepositoryUrl
+					connection = scmConnectionUrl
+					developerConnection = scmDeveloperConnectionUrl
+				}
+			}
+		}
+	}
+
+	repositories {
+		if (githubPackagesUrl != null) {
+			maven {
+				name = 'GitHubPackages'
+				url = githubPackagesUrl
+				credentials {
+					username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
+					password = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN')
+				}
+			}
+		}
+	}
 }

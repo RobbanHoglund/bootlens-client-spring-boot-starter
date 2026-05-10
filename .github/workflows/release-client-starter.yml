@@ -1,0 +1,80 @@
+name: Release BootLens client starter
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version to tag and publish, for example 0.1.0 or 0.1.0-rc1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Version input is required." >&2
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version format: $VERSION" >&2
+            exit 1
+          fi
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not already exist
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin." >&2
+            exit 1
+          fi
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Run tests before tagging
+        run: ./gradlew test
+
+      - name: Create annotated tag
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+
+      - name: Push release tag
+        shell: bash
+        run: git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Write release summary
+        shell: bash
+        run: |
+          {
+            echo "## BootLens client starter release queued"
+            echo ""
+            echo "- Version: \`${{ steps.version.outputs.version }}\`"
+            echo "- Tag: \`${{ steps.version.outputs.tag }}\`"
+            echo "- Next step: the \`Publish BootLens client starter\` workflow will publish the package from the pushed tag."
+          } >> "$GITHUB_STEP_SUMMARY"
