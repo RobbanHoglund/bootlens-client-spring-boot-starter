@@ -82,6 +82,7 @@ Recommended release flow:
 4. the workflow runs tests, creates tag `v<version>`, and pushes it
 5. the pushed tag triggers `Publish BootLens client starter`
 6. the publish workflow publishes the package to GitHub Packages
+7. the publish workflow creates a GitHub Release for the same tag
 
 The publish workflow:
 
@@ -89,6 +90,7 @@ The publish workflow:
 2. sets up Java 25
 3. runs `./gradlew test`
 4. publishes with `./gradlew publish -PbootlensVersion=<resolved-version>`
+5. creates a GitHub Release with generated notes if one does not already exist
 
 Important:
 
