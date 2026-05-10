@@ -13,7 +13,7 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Output sanitization and truncation
 - Optional heap dump creation and safe download support
 - Auto-registration and heartbeat support
-- No security yet
+- HTTP Basic registration support for secured BootLens servers
 
 Planned later:
 
@@ -103,6 +103,8 @@ Available properties:
 - `server-url=http://localhost:9090`
 - `app-id=`
 - `app-name=`
+- `username=`
+- `password=`
 - `instance-id=`
 - `display-name=`
 - `base-url=`
@@ -131,6 +133,8 @@ Example:
 ```properties
 bootlens.client.registration.enabled=true
 bootlens.client.registration.server-url=http://localhost:9090
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
 bootlens.client.registration.app-id=bootlens-demo
 bootlens.client.registration.app-name=BootLens Demo
 bootlens.client.registration.instance-id=bootlens-demo-app-local-${server.port}
@@ -151,6 +155,11 @@ When the application becomes ready, the starter:
 Registration and heartbeats are best effort. If BootLens Server is unavailable, the application keeps running and the next heartbeat cycle retries automatically.
 
 BootLens Server controls online/offline visibility using its own registry policies, for example heartbeat TTL and offline retention.
+
+When BootLens server security is enabled, use the dedicated `registrant`
+credentials only for registration, heartbeat, and deregistration calls. Those
+credentials are intentionally scoped away from operator/admin-only APIs such as
+cache eviction, logger mutation, diagnostics execution, and heap-dump download.
 
 ## Endpoint Exposure
 
@@ -197,6 +206,7 @@ curl -O http://localhost:9091/actuator/bootlensDiagnostics/heap-dumps/{id}
 - Heap dump creation is disabled by default and must be explicitly enabled.
 - Heap dumps are highly sensitive and may contain secrets, tokens, private data, cached objects, and full in-memory application state.
 - Heap dump creation can pause or slow the JVM and heap dump files can be very large.
+- Heap dump creation and download should be treated as operator/admin actions in BootLens, not casual browsing features.
 - `sanitize-privacy=true` masks local usernames, home directories, temp paths, machine names, local working directories, and other privacy-sensitive runtime values.
 - `include-classpath=false` omits `java.class.path` from `SYSTEM_PROPERTIES` output by default because classpaths are often very large and reveal local machine paths.
 - Output is sanitized by default for both common secret-like keys and privacy-sensitive runtime values.

@@ -125,6 +125,77 @@ class BootLensRegistrationClientTest {
     }
 
     @Test
+    void registrationAuthFailureSurfacesAsNonSuccessResult() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setUsername("registrant");
+        properties.setPassword("wrong-password");
+        MockEnvironment environment = new MockEnvironment().withProperty("server.port", "9091");
+        CapturingTransport transport = new CapturingTransport();
+        transport.nextPostResult = RegistrationCallResult.failure(401, "Unauthorized");
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            transport,
+            FIXED_CLOCK
+        );
+
+        RegistrationCallResult result = client.register();
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.statusCode()).isEqualTo(401);
+        assertThat(result.message()).isEqualTo("Unauthorized");
+    }
+
+    @Test
+    void heartbeatNotFoundSurfacesAsReRegistrationSignal() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setInstanceId("bootlens-demo-local-9091");
+        MockEnvironment environment = new MockEnvironment().withProperty("server.port", "9091");
+        CapturingTransport transport = new CapturingTransport();
+        transport.nextPostResult = RegistrationCallResult.notFound("Unknown instance");
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            transport,
+            FIXED_CLOCK
+        );
+
+        RegistrationCallResult result = client.heartbeat();
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.notFound()).isTrue();
+        assertThat(result.statusCode()).isEqualTo(404);
+        assertThat(result.message()).isEqualTo("Unknown instance");
+    }
+
+    @Test
+    void heartbeatAuthFailureSurfacesAsNonSuccessResult() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setInstanceId("bootlens-demo-local-9091");
+        properties.setUsername("registrant");
+        properties.setPassword("wrong-password");
+        MockEnvironment environment = new MockEnvironment().withProperty("server.port", "9091");
+        CapturingTransport transport = new CapturingTransport();
+        transport.nextPostResult = RegistrationCallResult.failure(401, "Unauthorized");
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            transport,
+            FIXED_CLOCK
+        );
+
+        RegistrationCallResult result = client.heartbeat();
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.notFound()).isFalse();
+        assertThat(result.statusCode()).isEqualTo(401);
+        assertThat(result.message()).isEqualTo("Unauthorized");
+    }
+
+    @Test
     void registrationMetadataIncludesRuntimeAndOperationalTags() {
         BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
         properties.setEnvironment("local");
@@ -191,12 +262,13 @@ class BootLensRegistrationClientTest {
 
         private String lastPostUrl;
         private String lastAuthorizationHeader;
+        private RegistrationCallResult nextPostResult = RegistrationCallResult.success(200);
 
         @Override
         public RegistrationCallResult post(String url, String jsonBody, String authorizationHeader) {
             this.lastPostUrl = url;
             this.lastAuthorizationHeader = authorizationHeader;
-            return RegistrationCallResult.success(200);
+            return nextPostResult;
         }
 
         @Override
