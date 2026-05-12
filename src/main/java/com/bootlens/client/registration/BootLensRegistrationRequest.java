@@ -9,6 +9,8 @@ public record BootLensRegistrationRequest(
     String displayName,
     String baseUrl,
     String actuatorBaseUrl,
+    String actuatorUsername,
+    String actuatorPassword,
     String environment,
     String region,
     String team,
