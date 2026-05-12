@@ -147,6 +147,8 @@ public class BootLensRegistrationClient {
         String environmentName = resolveEnvironment();
         String instanceId = firstNonBlank(properties.getInstanceId(), stableInstanceId(appId, hostname, serverPort));
         String displayName = firstNonBlank(properties.getDisplayName(), instanceId);
+        String actuatorUsername = firstNonBlank(properties.getActuatorUsername(), null);
+        String actuatorPassword = firstNonBlank(properties.getActuatorPassword(), null);
         String region = firstNonBlank(properties.getRegion(), null);
         String team = firstNonBlank(properties.getTeam(), null);
         String zone = firstNonBlank(properties.getZone(), null);
@@ -162,6 +164,8 @@ public class BootLensRegistrationClient {
             displayName,
             baseUrl,
             actuatorBaseUrl,
+            actuatorUsername,
+            actuatorPassword,
             environmentName,
             region,
             team,

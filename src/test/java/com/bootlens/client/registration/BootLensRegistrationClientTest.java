@@ -80,6 +80,27 @@ class BootLensRegistrationClientTest {
     }
 
     @Test
+    void registrationRequestIncludesOptionalActuatorCredentials() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setActuatorUsername("actuator-user");
+        properties.setActuatorPassword("actuator-secret");
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("server.port", "9091");
+
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            environment,
+            new CapturingTransport(),
+            FIXED_CLOCK
+        );
+
+        BootLensRegistrationRequest request = client.buildRegistrationRequest();
+
+        assertThat(request.actuatorUsername()).isEqualTo("actuator-user");
+        assertThat(request.actuatorPassword()).isEqualTo("actuator-secret");
+    }
+
+    @Test
     void heartbeatCallPathIsCorrect() {
         BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
         properties.setServerUrl("http://bootlens.example:9090/");

@@ -351,6 +351,26 @@ Available properties:
 - `deregister-on-shutdown=true`
 - `labels.*=...`
 
+Core metadata guidance:
+
+- `environment` is the primary deployment context shown in BootLens filters and metadata cards.
+  Use values like `prod`, `staging`, `dev`, or `local`.
+- `team` should identify ownership, not infrastructure shape.
+  Good examples: `platform`, `payments`, `trading`.
+- `region` should identify where the workload runs from an operator point of view.
+  Good examples: `eu-west-1`, `us-east-1`, `railway-eu-west`.
+- `zone` and `slot` are optional topology details.
+  Use them when they genuinely help operators distinguish placements or rollout lanes.
+- `labels.*` is the escape hatch for custom dimensions such as `tier`, `topology`, `tenant`, or `cluster`.
+  Prefer the first-class properties above for environment, team, and region instead of only putting them in `labels.*`.
+
+What these properties drive in BootLens:
+
+- Fleet overview shows `environment`, `team`, and `region` as first-class metadata.
+- Applications and Instances inventory use those same fields in filters and metadata coverage summaries.
+- Missing metadata is now shown as `Not reported`, so leaving fields unset is visible to operators.
+- Generic tags are still useful, but they should hold secondary dimensions rather than core ownership or placement.
+
 Operational guidance:
 
 - `username` should be the BootLens machine registrant account, not the
@@ -360,6 +380,10 @@ Operational guidance:
   would use
 - `actuator-base-url` should be the actual deployed actuator base URL that
   BootLens can reach
+- in private service networks, prefer the private hostname and the actual
+  in-network protocol that BootLens server uses to reach the app
+- if your platform terminates TLS only on the public edge, the internal
+  service-to-service URL is often plain `http`, not `https`
 - avoid localhost-style fallbacks in hosted environments unless the monitored
   app and its actuator are intentionally only reachable inside the same
   container or pod
@@ -371,6 +395,7 @@ Defaults are resolved conservatively:
 - `instance-id` falls back to `appId-hostname-port`
 - `base-url` falls back to `http://localhost:${server.port}`
 - `actuator-base-url` falls back to `http://localhost:${management.server.port or server.port}/actuator`
+- `actuator-username` and `actuator-password` are optional and should be set only when BootLens server must authenticate against the monitored app's actuator endpoints
 - `environment` falls back to the first active Spring profile, otherwise `local`
 
 Reference example:
@@ -385,11 +410,66 @@ bootlens.client.registration.app-name=BootLens Demo
 bootlens.client.registration.instance-id=bootlens-demo-app-local-${server.port}
 bootlens.client.registration.base-url=http://localhost:${server.port}
 bootlens.client.registration.actuator-base-url=http://localhost:${server.port}/actuator
+bootlens.client.registration.actuator-username=admin
+bootlens.client.registration.actuator-password=${APP_ACTUATOR_PASSWORD}
 bootlens.client.registration.environment=local
 bootlens.client.registration.region=eu-local
 bootlens.client.registration.team=platform
 bootlens.client.registration.heartbeat-interval=PT10S
 ```
+
+Hosted private-network example:
+
+```properties
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+
+bootlens.client.registration.app-id=trading-bot
+bootlens.client.registration.app-name=Trading Bot
+bootlens.client.registration.instance-id=trading-bot-${server.port}
+bootlens.client.registration.base-url=http://${RAILWAY_PRIVATE_DOMAIN}:${server.port}
+bootlens.client.registration.actuator-base-url=http://${RAILWAY_PRIVATE_DOMAIN}:${server.port}/actuator
+bootlens.client.registration.actuator-username=admin
+bootlens.client.registration.actuator-password=${APP_ACTUATOR_PASSWORD}
+
+bootlens.client.registration.environment=prod
+bootlens.client.registration.region=railway-eu-west
+bootlens.client.registration.team=trading
+bootlens.client.registration.labels.topology=single-instance
+```
+
+Field-by-field tips:
+
+- `server-url`
+  BootLens server URL, not the monitored app URL.
+- `base-url`
+  The app URL an operator would conceptually associate with the instance.
+  In private-network deployments this is often an internal URL.
+- `actuator-base-url`
+  The exact actuator base URL that BootLens server can call back into.
+  This must match network reality, including whether the internal path is `http` or `https`.
+- `actuator-username` / `actuator-password`
+  Optional callback credentials BootLens server should use when it reads this
+  app's actuator endpoints. Use these when `/actuator/info`, `/actuator/metrics`,
+  or related endpoints are protected and BootLens should still monitor the app.
+- `environment`
+  Use short stable values because operators will filter by these often.
+- `region`
+  Set this explicitly in hosted deployments; do not assume BootLens can infer it.
+- `team`
+  Set this explicitly if you want Fleet overview and inventory pages to answer “who owns this?” without extra context.
+- `labels.topology`, `labels.tier`, `labels.tenant`
+  Good examples of extra metadata that belongs in custom labels.
+
+Common mistakes:
+
+- setting `server-url` to the monitored application instead of BootLens server
+- using public `https` URLs for internal service-to-service actuator calls when the platform only exposes internal `http`
+- omitting `team` and `region` and expecting Fleet overview to infer them
+- putting core metadata only in ad hoc custom labels instead of the first-class properties
+- leaving `base-url` and `actuator-base-url` on localhost defaults in hosted environments
 
 Runtime behavior:
 

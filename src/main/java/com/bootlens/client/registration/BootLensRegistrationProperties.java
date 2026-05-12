@@ -27,6 +27,8 @@ public class BootLensRegistrationProperties {
     private String displayName;
     private String baseUrl;
     private String actuatorBaseUrl;
+    private String actuatorUsername;
+    private String actuatorPassword;
     private String environment;
     private String region;
     private String team;
@@ -113,6 +115,16 @@ public class BootLensRegistrationProperties {
         this.displayName = displayName;
     }
 
+    /**
+     * Public or operator-facing base URL associated with this monitored
+     * application instance.
+     *
+     * <p>This should describe the application itself, not the BootLens server.
+     * In hosted private-network deployments this is often an internal URL when
+     * that is the canonical route BootLens operators reason about.</p>
+     *
+     * @return the base URL BootLens should associate with the instance
+     */
     public String getBaseUrl() {
         return baseUrl;
     }
@@ -121,6 +133,15 @@ public class BootLensRegistrationProperties {
         this.baseUrl = baseUrl;
     }
 
+    /**
+     * Actuator base URL that BootLens server can use for callback reads.
+     *
+     * <p>This value must match real network reachability from BootLens server to
+     * the monitored application, including whether the internal path uses HTTP
+     * or HTTPS.</p>
+     *
+     * @return the concrete actuator base URL reachable by BootLens server
+     */
     public String getActuatorBaseUrl() {
         return actuatorBaseUrl;
     }
@@ -129,6 +150,39 @@ public class BootLensRegistrationProperties {
         this.actuatorBaseUrl = actuatorBaseUrl;
     }
 
+    /**
+     * Optional username BootLens server should use when it calls this
+     * instance's actuator endpoints.
+     *
+     * @return actuator HTTP Basic username BootLens server can use
+     */
+    public String getActuatorUsername() {
+        return actuatorUsername;
+    }
+
+    public void setActuatorUsername(String actuatorUsername) {
+        this.actuatorUsername = actuatorUsername;
+    }
+
+    /**
+     * Optional password BootLens server should use when it calls this
+     * instance's actuator endpoints.
+     *
+     * @return actuator HTTP Basic password BootLens server can use
+     */
+    public String getActuatorPassword() {
+        return actuatorPassword;
+    }
+
+    public void setActuatorPassword(String actuatorPassword) {
+        this.actuatorPassword = actuatorPassword;
+    }
+
+    /**
+     * Primary deployment environment shown in BootLens filters and metadata.
+     *
+     * @return environment identifier such as prod, staging, dev, or local
+     */
     public String getEnvironment() {
         return environment;
     }
@@ -137,6 +191,11 @@ public class BootLensRegistrationProperties {
         this.environment = environment;
     }
 
+    /**
+     * Primary runtime region shown in BootLens fleet metadata.
+     *
+     * @return operator-facing region identifier such as eu-west-1
+     */
     public String getRegion() {
         return region;
     }
@@ -145,6 +204,11 @@ public class BootLensRegistrationProperties {
         this.region = region;
     }
 
+    /**
+     * Owning team shown in BootLens fleet metadata.
+     *
+     * @return logical owner name such as platform, payments, or trading
+     */
     public String getTeam() {
         return team;
     }
