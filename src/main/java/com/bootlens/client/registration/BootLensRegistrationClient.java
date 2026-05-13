@@ -433,6 +433,8 @@ public class BootLensRegistrationClient {
         appendField(builder, "displayName", request.displayName(), false);
         appendField(builder, "baseUrl", request.baseUrl(), false);
         appendField(builder, "actuatorBaseUrl", request.actuatorBaseUrl(), false);
+        appendField(builder, "actuatorUsername", request.actuatorUsername(), false);
+        appendField(builder, "actuatorPassword", request.actuatorPassword(), false);
         appendField(builder, "environment", request.environment(), false);
         appendField(builder, "region", request.region(), false);
         appendField(builder, "team", request.team(), false);
