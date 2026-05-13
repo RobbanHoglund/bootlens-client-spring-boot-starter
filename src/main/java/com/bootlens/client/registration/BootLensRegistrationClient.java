@@ -38,6 +38,7 @@ public class BootLensRegistrationClient {
     private final Environment environment;
     private final RegistrationTransport transport;
     private final Clock clock;
+    private volatile boolean callbackCredentialSummaryLogged;
 
     public BootLensRegistrationClient(
         BootLensRegistrationProperties properties,
@@ -60,6 +61,7 @@ public class BootLensRegistrationClient {
 
     RegistrationCallResult register() {
         BootLensResolvedRegistration registration = resolveRegistration();
+        logCallbackCredentialSummary(registration, "register");
         String url = registration.serverUrl() + "/api/registry/instances";
         return execute("register", registration.instanceId(), () -> transport.post(url, toJson(registration.toRegistrationRequest()), authorizationHeader()));
     }
@@ -89,6 +91,13 @@ public class BootLensRegistrationClient {
         return resolveRegistration().instanceId();
     }
 
+    String resolvedCallbackCredentialSummary() {
+        BootLensResolvedRegistration registration = resolveRegistration();
+        return "actuatorBaseUrl=" + registration.actuatorBaseUrl()
+            + ", actuatorUsername=" + firstNonBlank(registration.actuatorUsername(), "(missing)")
+            + ", actuatorPasswordPresent=" + (registration.actuatorPassword() != null);
+    }
+
     private RegistrationCallResult execute(String action, String instanceId, ThrowingSupplier supplier) {
         try {
             RegistrationCallResult result = supplier.get();
@@ -113,6 +122,21 @@ public class BootLensRegistrationClient {
             log.debug("BootLens {} call failed unexpectedly for {}: {}", action, instanceId, exception.getMessage());
             return RegistrationCallResult.failure(500, exception.getMessage());
         }
+    }
+
+    private void logCallbackCredentialSummary(BootLensResolvedRegistration registration, String source) {
+        if (callbackCredentialSummaryLogged) {
+            return;
+        }
+        callbackCredentialSummaryLogged = true;
+        log.info(
+            "BootLens client resolved callback credentials before {} for {}: actuatorBaseUrl={}, actuatorUsername={}, actuatorPasswordPresent={}",
+            source,
+            registration.instanceId(),
+            registration.actuatorBaseUrl(),
+            firstNonBlank(registration.actuatorUsername(), "(missing)"),
+            registration.actuatorPassword() != null
+        );
     }
 
     /**

@@ -110,6 +110,12 @@ class BootLensRegistrationLifecycle implements ApplicationListener<ApplicationRe
     }
 
     private void attemptRegistration(String source) {
+        log.info(
+            "BootLens {} registration attempt for {} with {}",
+            source,
+            registrationClient.resolvedInstanceId(),
+            registrationClient.resolvedCallbackCredentialSummary()
+        );
         RegistrationCallResult result = registrationClient.register();
         if (result.success()) {
             registered = true;
