@@ -243,6 +243,70 @@ bootlens.client.registration.environment=prod
 Use the public BootLens URL when the monitored application is not inside the
 same private network as the BootLens server.
 
+### 4c. Recommended production actuator security model
+
+This is the recommended model for all BootLens-monitored applications in
+production, including BootLens Server when it monitors itself.
+
+Use this model consistently:
+
+1. expose `GET /actuator/health` without authentication
+2. protect the rest of `/actuator/**`
+3. register callback credentials with:
+   - `bootlens.client.registration.actuator-username`
+   - `bootlens.client.registration.actuator-password`
+
+Why this is the recommended design:
+
+- it keeps health checks simple for platforms and load balancers
+- it avoids exposing `/actuator/info`, `/actuator/metrics`, `/actuator/env`,
+  and other operational endpoints to everyone
+- it gives BootLens one consistent callback model for all monitored apps
+- it prevents one app from "working by accident" only because its actuator is
+  fully open
+
+Do not rely on `permitAll` for the whole actuator in production just because
+BootLens can read it. That is a convenience shortcut, not the recommended
+operating model.
+
+Minimal example when the monitored app protects actuator endpoints:
+
+```properties
+management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump,env,configprops,mappings,caches,scheduledtasks,bootlensDiagnostics
+management.endpoint.health.show-details=always
+
+bootlens.client.registration.enabled=true
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+
+bootlens.client.registration.app-id=trading-bot
+bootlens.client.registration.app-name=Trading Bot
+bootlens.client.registration.instance-id=trading-bot-${HOSTNAME}
+bootlens.client.registration.base-url=http://${RAILWAY_PRIVATE_DOMAIN}:${server.port}
+bootlens.client.registration.actuator-base-url=http://${RAILWAY_PRIVATE_DOMAIN}:${server.port}/actuator
+bootlens.client.registration.actuator-username=${APP_ACTUATOR_USERNAME}
+bootlens.client.registration.actuator-password=${APP_ACTUATOR_PASSWORD}
+
+bootlens.client.registration.environment=prod
+bootlens.client.registration.region=eu-west
+bootlens.client.registration.team=platform
+```
+
+If BootLens shows an error like:
+
+- `BootLens reached the monitored application, but actuator access was denied (401 UNAUTHORIZED for /actuator/info).`
+
+check these things in order:
+
+1. the monitored app protects `/actuator/info` and related endpoints
+2. `bootlens.client.registration.actuator-username` is set correctly
+3. `bootlens.client.registration.actuator-password` is set correctly
+4. the deployed client library version actually supports sending actuator
+   callback credentials in the registration payload
+5. BootLens server received and stored those credentials for the registered
+   instance
+
 ### 5. Start the application and verify registration
 
 When the application becomes ready, the starter:
@@ -341,6 +405,8 @@ Available properties:
 - `display-name=`
 - `base-url=`
 - `actuator-base-url=`
+- `actuator-username=`
+- `actuator-password=`
 - `environment=`
 - `region=`
 - `team=`
@@ -363,6 +429,8 @@ Core metadata guidance:
   Use them when they genuinely help operators distinguish placements or rollout lanes.
 - `labels.*` is the escape hatch for custom dimensions such as `tier`, `topology`, `tenant`, or `cluster`.
   Prefer the first-class properties above for environment, team, and region instead of only putting them in `labels.*`.
+- do not duplicate first-class metadata in `labels.*` unless you are migrating older config.
+  For example, if you set `environment=prod`, `region=eu-west`, and `team=platform`, you normally should not also set `labels.env`, `labels.region`, or `labels.team`.
 
 What these properties drive in BootLens:
 
@@ -396,6 +464,7 @@ Defaults are resolved conservatively:
 - `base-url` falls back to `http://localhost:${server.port}`
 - `actuator-base-url` falls back to `http://localhost:${management.server.port or server.port}/actuator`
 - `actuator-username` and `actuator-password` are optional and should be set only when BootLens server must authenticate against the monitored app's actuator endpoints
+- in production, protecting `/actuator/**` except `/actuator/health` and supplying these callback credentials is the recommended model
 - `environment` falls back to the first active Spring profile, otherwise `local`
 
 Reference example:
@@ -454,6 +523,8 @@ Field-by-field tips:
   Optional callback credentials BootLens server should use when it reads this
   app's actuator endpoints. Use these when `/actuator/info`, `/actuator/metrics`,
   or related endpoints are protected and BootLens should still monitor the app.
+  This is the recommended production design for both regular apps and
+  BootLens Server self-monitoring.
 - `environment`
   Use short stable values because operators will filter by these often.
 - `region`
@@ -469,7 +540,12 @@ Common mistakes:
 - using public `https` URLs for internal service-to-service actuator calls when the platform only exposes internal `http`
 - omitting `team` and `region` and expecting Fleet overview to infer them
 - putting core metadata only in ad hoc custom labels instead of the first-class properties
+- duplicating `environment`, `region`, or `team` in both first-class properties and `labels.*`
 - leaving `base-url` and `actuator-base-url` on localhost defaults in hosted environments
+- protecting `/actuator/**` but forgetting to set `actuator-username` and
+  `actuator-password`
+- assuming that one app proves callback auth works when that app actually has
+  `/actuator/**` configured as `permitAll`
 
 Runtime behavior:
 
