@@ -562,6 +562,62 @@ credentials only for registration, heartbeat, and deregistration calls. Those
 credentials are intentionally scoped away from operator/admin-only APIs such as
 cache eviction, logger mutation, diagnostics execution, and heap-dump download.
 
+## Railway Auto-Configuration
+
+When the application runs on Railway, the starter automatically reads Railway
+platform environment variables and uses them as lowest-priority defaults for
+`bootlens.client.registration.*` properties. No extra configuration is needed
+to get the core registration metadata right on Railway.
+
+### What gets derived automatically
+
+| Property | Derived from |
+|---|---|
+| `app-name` | `RAILWAY_SERVICE_NAME` |
+| `app-id` | kebab-normalised `RAILWAY_SERVICE_NAME` |
+| `instance-id` | `{app-id}-{HOSTNAME}` |
+| `environment` | `RAILWAY_ENVIRONMENT_NAME` (default: `production`) |
+| `region` | `RAILWAY_REGION` (when set) |
+| `base-url` | `https://{RAILWAY_PUBLIC_DOMAIN}` (when set) |
+| `actuator-base-url` | `http://{RAILWAY_PRIVATE_DOMAIN}:{PORT}/actuator` (preferred) or public domain fallback |
+| `labels.railway-service` | `RAILWAY_SERVICE_NAME` |
+| `labels.railway-environment` | `RAILWAY_ENVIRONMENT_NAME` |
+| `labels.railway-project` | `RAILWAY_PROJECT_NAME` (when set) |
+
+The private domain is preferred for `actuator-base-url` because BootLens
+server and the monitored app are typically in the same Railway private network,
+making internal `http` both faster and more reliable than the public edge.
+
+### What still requires explicit configuration
+
+- `server-url` — the BootLens server address
+- `username` / `password` — BootLens registrant credentials
+- `actuator-username` / `actuator-password` — callback credentials if the actuator is protected
+
+### Minimal Railway example
+
+With auto-configuration active, the only required properties are the BootLens
+server address and credentials:
+
+```properties
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+
+# Protect actuator and give BootLens server the callback credentials
+bootlens.client.registration.actuator-username=${APP_ACTUATOR_USERNAME}
+bootlens.client.registration.actuator-password=${APP_ACTUATOR_PASSWORD}
+```
+
+Everything else — service name, instance ID, environment, URLs — is picked up
+from the Railway environment automatically. You can override any individual
+property by setting it explicitly; explicit values always take precedence.
+
+### Behaviour when not on Railway
+
+When `RAILWAY_SERVICE_NAME` is not present in the environment (local development,
+other platforms), the post-processor does nothing and the standard defaults apply.
+
 ## Memory Pressure Properties
 
 Prefix:
