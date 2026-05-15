@@ -77,6 +77,18 @@ class BootLensClientVersionInfoContributorTest {
         assertThat(info).isEmpty();
     }
 
+    @Test
+    void packagedStarterPropertiesAreResolvedOnTheClasspath() {
+        Map<String, Object> info = BootLensClientVersionInfoContributor.load(
+            getClass().getClassLoader(),
+            "META-INF/bootlens-client.properties"
+        );
+
+        assertThat(info).containsKeys("version", "artifact");
+        assertThat(info.get("version").toString()).doesNotStartWith("${");
+        assertThat(info.get("artifact").toString()).doesNotStartWith("${");
+    }
+
     // --- contribute ---
 
     @Test
