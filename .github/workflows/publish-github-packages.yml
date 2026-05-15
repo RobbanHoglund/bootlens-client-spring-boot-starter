@@ -38,7 +38,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
-        run: ./gradlew test
+        env:
+          BOOTLENS_VERSION: ${{ steps.version.outputs.version }}
+        run: ./gradlew test -PbootlensVersion=${BOOTLENS_VERSION}
 
       - name: Publish to GitHub Packages
         env:
