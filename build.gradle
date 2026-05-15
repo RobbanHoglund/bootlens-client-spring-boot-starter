@@ -49,6 +49,12 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+processResources {
+	filesMatching('META-INF/bootlens-client.properties') {
+		expand(version: project.version, artifact: project.name)
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }
