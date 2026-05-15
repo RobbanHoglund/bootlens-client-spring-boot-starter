@@ -14,6 +14,7 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Optional heap dump creation and safe download support
 - Auto-registration and heartbeat support
 - HTTP Basic registration support for secured BootLens servers
+- Early memory pressure monitor with configurable thresholds and rate-limited logging
 
 Planned later:
 
@@ -560,6 +561,80 @@ When BootLens server security is enabled, use the dedicated `registrant`
 credentials only for registration, heartbeat, and deregistration calls. Those
 credentials are intentionally scoped away from operator/admin-only APIs such as
 cache eviction, logger mutation, diagnostics execution, and heap-dump download.
+
+## Memory Pressure Properties
+
+Prefix:
+
+`memory.pressure`
+
+Available properties:
+
+- `enabled=true`
+- `warning-threshold-percent=75`
+- `critical-threshold-percent=85`
+- `emergency-threshold-percent=92`
+- `check-interval=60s`
+
+The monitor starts automatically with the application and logs a confirmation line at startup:
+
+```
+INFO  Memory pressure monitor active: interval=PT1M, thresholds warning=75% critical=85% emergency=92%
+```
+
+When a threshold is exceeded the monitor logs at `WARN` (warning) or `ERROR` (critical and emergency):
+
+```
+WARN  Memory pressure WARNING: heap 768/1024 MB (75.0%), container 800/1024 MB (78.1%)
+ERROR Memory pressure CRITICAL: heap 880/1024 MB (85.9%), container 900/1024 MB (87.9%)
+ERROR Memory pressure EMERGENCY: heap 950/1024 MB (92.8%), container 960/1024 MB (93.8%)
+```
+
+Repeated messages at the same level are rate-limited to avoid log spam:
+
+- WARNING: at most once every 10 minutes
+- CRITICAL: at most once every 5 minutes
+- EMERGENCY: at most once every 2 minutes
+
+A level change always logs immediately. The rate-limit resets when memory pressure drops back below the warning threshold.
+
+Container memory is read from cgroup v2 files (`/sys/fs/cgroup/memory.current` and `memory.max`).
+When those files are not available — for example on non-Linux hosts or outside a container — the monitor falls back to JVM heap metrics only and logs a single debug message.
+Container percent drives level classification when available; heap metrics are always included in the log output regardless.
+
+The latest snapshot is also exposed at `/actuator/info` under the `memoryPressure` key:
+
+```json
+{
+  "memoryPressure": {
+    "heapUsedMb": 768,
+    "heapMaxMb": 1024,
+    "heapPercent": 75.0,
+    "containerUsedMb": 800,
+    "containerMaxMb": 1024,
+    "containerPercent": 78.1,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+The monitor does not affect the health endpoint status.
+
+Minimal example:
+
+```properties
+memory.pressure.enabled=true
+memory.pressure.warning-threshold-percent=75
+memory.pressure.critical-threshold-percent=85
+memory.pressure.emergency-threshold-percent=92
+memory.pressure.check-interval=60s
+```
+
+To disable:
+
+```properties
+memory.pressure.enabled=false
+```
 
 ## Endpoint Exposure
 

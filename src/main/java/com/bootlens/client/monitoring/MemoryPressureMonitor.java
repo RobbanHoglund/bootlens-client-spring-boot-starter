@@ -80,6 +80,13 @@ class MemoryPressureMonitor implements ApplicationListener<ApplicationReadyEvent
         if (!started.compareAndSet(false, true)) {
             return;
         }
+        log.info(
+            "Memory pressure monitor active: interval={}, thresholds warning={}% critical={}% emergency={}%",
+            properties.getCheckInterval(),
+            properties.getWarningThresholdPercent(),
+            properties.getCriticalThresholdPercent(),
+            properties.getEmergencyThresholdPercent()
+        );
         long intervalMillis = Math.max(5_000L, properties.getCheckInterval().toMillis());
         executorService.scheduleAtFixedRate(this::check, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
     }
