@@ -18,6 +18,10 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Early memory pressure monitor with configurable thresholds and rate-limited logging
 - GC pause time monitor with configurable thresholds and rate-limited logging
 - File descriptor monitor with configurable thresholds (Linux/macOS)
+- Direct (off-heap) memory monitor — detects NIO/Netty buffer pressure invisible to heap monitors
+- Thread deadlock detector — catches silent deadlocks and logs immediately with thread names
+- Log error rate monitor — alerts when ERROR log volume spikes above a threshold
+- Metaspace monitor — tracks class-loader memory; alerts before metaspace is exhausted
 
 Planned later:
 
@@ -861,6 +865,312 @@ To disable:
 
 ```properties
 gc.pressure.enabled=false
+```
+
+## Direct Memory Properties
+
+Prefix:
+
+`direct.memory`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor |
+| `warning-threshold-percent` | `50` | Logs WARN when direct memory usage exceeds this percent of the JVM limit |
+| `critical-threshold-percent` | `75` | Logs ERROR at critical level |
+| `emergency-threshold-percent` | `90` | Logs ERROR at emergency level |
+| `check-interval` | `60s` | How often direct memory usage is sampled |
+
+Direct memory is off-heap memory allocated by `ByteBuffer.allocateDirect()` and used internally by NIO,
+Netty, gRPC, and most async networking libraries. It is completely invisible to heap-based monitors
+and GC pressure metrics — the JVM heap can look healthy while direct memory runs to exhaustion.
+When the limit is reached, new direct buffer allocations throw `OutOfMemoryError: Direct buffer memory`.
+
+The monitor reads the JVM direct memory limit via `sun.misc.VM.maxDirectMemory()`. When the limit
+cannot be resolved (rare), the monitor still reports used and capacity bytes in the `/actuator/info`
+snapshot but does not classify pressure levels.
+
+The default JVM limit equals the heap max (`-Xmx`) unless explicitly set with `-XX:MaxDirectMemorySize`.
+
+On startup the monitor logs:
+
+```
+INFO  Direct memory monitor active: interval=PT1M, thresholds warning=50% critical=75% emergency=90%, maxDirectMemory=256MB
+```
+
+When a threshold is exceeded:
+
+```
+WARN  Direct memory pressure WARNING: 128/256 MB used (50.0%), 842 buffers, capacity 128 MB
+ERROR Direct memory pressure CRITICAL: 192/256 MB used (75.0%), 1204 buffers, capacity 192 MB
+ERROR Direct memory pressure EMERGENCY: 230/256 MB used (90.0%), 1531 buffers, capacity 230 MB
+```
+
+Rate-limiting follows the same rules as the other monitors (WARNING 10 min, CRITICAL 5 min, EMERGENCY 2 min).
+Level changes always log immediately.
+
+The latest snapshot is available at `/actuator/info` under the `directMemory` key:
+
+```json
+{
+  "directMemory": {
+    "available": true,
+    "bufferCount": 842,
+    "usedMb": 128,
+    "capacityMb": 128,
+    "maxMb": 256,
+    "percent": 50.0,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+When the JVM limit cannot be resolved:
+
+```json
+{
+  "directMemory": {
+    "available": false,
+    "bufferCount": 842,
+    "usedMb": 128,
+    "capacityMb": 128,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To disable:
+
+```properties
+direct.memory.enabled=false
+```
+
+## Thread Deadlock Properties
+
+Prefix:
+
+`thread.deadlock`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the detector |
+| `check-interval` | `30s` | How often threads are inspected for deadlocks |
+
+A deadlock is a condition where two or more threads are permanently blocked waiting for each other
+to release a lock. It produces no exception, no OOM, no health-check change, and no metrics
+degradation — the affected threads simply stop making progress. The only observable symptom is
+that request handling or background tasks quietly freeze.
+
+The detector calls `ThreadMXBean.findDeadlockedThreads()` on a fixed schedule. This covers both
+Java object monitor deadlocks (`synchronized`) and `java.util.concurrent` lock deadlocks (`ReentrantLock`, etc.).
+
+The check interval defaults to 30 seconds — shorter than the other monitors — because a deadlock
+that goes undetected for several minutes can cascade into a full application hang.
+
+On startup the detector logs:
+
+```
+INFO  Thread deadlock detector active: interval=PT30S
+```
+
+When a deadlock is detected, it logs immediately at ERROR regardless of rate limits, with the
+thread names and IDs involved:
+
+```
+ERROR DEADLOCK DETECTED: 2 thread(s) deadlocked — worker-1 (id=42), worker-2 (id=43)
+```
+
+If the deadlock persists across multiple checks, a reminder is logged at most once every 2 minutes.
+When the deadlock resolves (threads terminate or locks are released), the detector logs:
+
+```
+INFO  Thread deadlock resolved — no deadlocked threads detected
+```
+
+The latest snapshot is available at `/actuator/info` under the `threadDeadlock` key:
+
+```json
+{
+  "threadDeadlock": {
+    "deadlocked": false,
+    "threadCount": 0,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+When a deadlock is active:
+
+```json
+{
+  "threadDeadlock": {
+    "deadlocked": true,
+    "threadCount": 2,
+    "threadNames": ["worker-1 (id=42)", "worker-2 (id=43)"],
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To disable:
+
+```properties
+thread.deadlock.enabled=false
+```
+
+## Log Error Rate Properties
+
+Prefix:
+
+`log.errors`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor |
+| `warning-errors-per-interval` | `10` | Logs WARN when ERROR events in the last interval reach this count |
+| `critical-errors-per-interval` | `50` | Logs ERROR at critical level |
+| `emergency-errors-per-interval` | `200` | Logs ERROR at emergency level |
+| `check-interval` | `60s` | How long each counting interval lasts |
+
+**Platform note:** this monitor requires Logback as the logging framework. It is automatically
+disabled when Logback is not on the classpath.
+
+A sudden spike in ERROR log volume is typically the earliest observable signal of a production
+problem — it usually precedes degraded latency, failed health checks, and customer reports by
+minutes or more. This monitor hooks into the root Logback appender and counts `ERROR` and `WARN`
+log events per interval without adding any per-log overhead beyond a single atomic counter increment.
+
+The thresholds are counts-per-interval, not percentages, because there is no fixed log volume ceiling.
+Tune them to match the normal ERROR baseline for your application — a batch job that logs 5 errors
+per minute at baseline should use higher thresholds than an API server that normally logs zero.
+
+On startup the monitor logs:
+
+```
+INFO  Log error rate monitor active: interval=PT1M, thresholds warning=10 critical=50 emergency=200 errors/interval
+```
+
+When a threshold is exceeded:
+
+```
+WARN  Log error rate WARNING: 12 ERROR and 30 WARN log events in last interval (total 47 errors / 203 warns)
+ERROR Log error rate CRITICAL: 63 ERROR and 95 WARN log events in last interval (total 110 errors / 298 warns)
+```
+
+Rate-limiting follows the same rules as the other monitors (WARNING 10 min, CRITICAL 5 min, EMERGENCY 2 min).
+Level changes always log immediately.
+
+The latest snapshot is available at `/actuator/info` under the `logErrors` key:
+
+```json
+{
+  "logErrors": {
+    "errorsInInterval": 12,
+    "warnsInInterval": 30,
+    "totalErrors": 47,
+    "totalWarns": 203,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To disable:
+
+```properties
+log.errors.enabled=false
+```
+
+## Metaspace Properties
+
+Prefix:
+
+`metaspace`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor |
+| `warning-threshold-percent` | `70` | Logs WARN when metaspace usage exceeds this percent of the max |
+| `critical-threshold-percent` | `85` | Logs ERROR at critical level |
+| `emergency-threshold-percent` | `95` | Logs ERROR at emergency level |
+| `check-interval` | `60s` | How often metaspace usage is sampled |
+
+Metaspace holds JVM class metadata — the internal representation of every loaded class and its
+methods. It grows when classes are loaded and shrinks (slowly) when class loaders are GC'd.
+Applications that generate classes dynamically — Spring-heavy applications with many proxies,
+serialization libraries, expression evaluators, hot-reload development tools, or scripting
+engines — can leak metaspace gradually until the JVM throws `OutOfMemoryError: Metaspace`.
+
+Metaspace leaks are slow and hard to diagnose retroactively. By the time an OOM occurs, the
+root cause (a class loader that was never collected) has often long since disappeared from
+thread dumps. This monitor exposes the fill level early.
+
+**Bounded vs. unbounded metaspace:** the JVM default is unlimited metaspace, meaning it
+grows as far as the OS allows (`-XX:MaxMetaspaceSize` is not set). In that mode the monitor
+reports used and committed bytes informatively but cannot compute a fill percentage and does
+not trigger threshold alerts. Set `-XX:MaxMetaspaceSize` explicitly to activate threshold alerts.
+
+On startup the monitor logs one of two messages:
+
+```
+# When -XX:MaxMetaspaceSize is set:
+INFO  Metaspace monitor active: interval=PT1M, thresholds warning=70% critical=85% emergency=95%, max=512MB
+
+# When max is unlimited:
+INFO  Metaspace monitor active: interval=PT1M, no max configured (thresholds inactive — reporting used/committed only)
+```
+
+When a threshold is exceeded (requires `-XX:MaxMetaspaceSize`):
+
+```
+WARN  Metaspace pressure WARNING: 358/512 MB used (70.0%), committed 360 MB
+ERROR Metaspace pressure CRITICAL: 435/512 MB used (85.0%), committed 437 MB
+```
+
+Rate-limiting follows the same rules as the other monitors (WARNING 10 min, CRITICAL 5 min, EMERGENCY 2 min).
+Level changes always log immediately.
+
+The latest snapshot is available at `/actuator/info` under the `metaspace` key:
+
+```json
+{
+  "metaspace": {
+    "usedMb": 358,
+    "committedMb": 360,
+    "maxMb": 512,
+    "percent": 70.0,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+When metaspace max is not configured:
+
+```json
+{
+  "metaspace": {
+    "usedMb": 128,
+    "committedMb": 130,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To activate threshold alerts, set the JVM flag and tune if needed:
+
+```properties
+# JVM flag (not a Spring property):
+# -XX:MaxMetaspaceSize=512m
+
+# To adjust thresholds:
+metaspace.warning-threshold-percent=70
+metaspace.critical-threshold-percent=85
+metaspace.emergency-threshold-percent=95
+```
+
+To disable:
+
+```properties
+metaspace.enabled=false
 ```
 
 ## Endpoint Exposure

@@ -1,6 +1,10 @@
 com.bootlens.client.diagnostics.BootLensClientInfoAutoConfiguration
 com.bootlens.client.diagnostics.BootLensDiagnosticsAutoConfiguration
+com.bootlens.client.monitoring.DirectMemoryAutoConfiguration
 com.bootlens.client.monitoring.FileDescriptorAutoConfiguration
 com.bootlens.client.monitoring.GcPressureAutoConfiguration
+com.bootlens.client.monitoring.LogErrorRateAutoConfiguration
 com.bootlens.client.monitoring.MemoryPressureAutoConfiguration
+com.bootlens.client.monitoring.MetaspaceAutoConfiguration
+com.bootlens.client.monitoring.ThreadDeadlockAutoConfiguration
 com.bootlens.client.registration.BootLensRegistrationAutoConfiguration
