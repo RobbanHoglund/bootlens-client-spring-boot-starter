@@ -692,6 +692,68 @@ To disable:
 memory.pressure.enabled=false
 ```
 
+## GC Pressure Properties
+
+Prefix:
+
+`gc.pressure`
+
+Available properties:
+
+- `enabled=true`
+- `warning-pause-percent=5`
+- `critical-pause-percent=20`
+- `emergency-pause-percent=40`
+- `check-interval=60s`
+
+The GC pressure monitor complements the memory pressure monitor. Where the memory
+monitor detects *current* heap fill, the GC monitor detects *activity*: how much
+wall-clock time the JVM spent in garbage collection during the last interval.
+High GC activity is often a leading indicator of an impending OOM problem — the
+heap may still look tolerable while the JVM is burning 20% of its time collecting.
+
+The monitor runs on a configurable fixed schedule and calculates GC pause time
+as a percentage of the actual interval length, making the thresholds
+interval-independent. On startup it logs its configuration:
+
+```
+INFO  GC pressure monitor active: interval=PT1M, thresholds warning=5% critical=20% emergency=40%
+```
+
+When a threshold is exceeded:
+
+```
+WARN  GC pressure WARNING: 3000ms pause in 60000ms interval (5.0%), cumulative 120 collections / 8500ms
+ERROR GC pressure CRITICAL: 12000ms pause in 60000ms interval (20.0%), cumulative 210 collections / 22000ms
+```
+
+Rate-limiting follows the same rules as the memory pressure monitor (WARNING 10 min,
+CRITICAL 5 min, EMERGENCY 2 min). Level changes always log immediately.
+
+The first check after startup establishes a baseline and does not produce a log
+entry, since there is no previous reference point to compute a delta from.
+
+The latest snapshot is available at `/actuator/info` under the `gcPressure` key:
+
+```json
+{
+  "gcPressure": {
+    "intervalCollections": 15,
+    "intervalPauseMs": 3000,
+    "intervalPausePercent": 5.0,
+    "totalCollections": 120,
+    "totalPauseMs": 8500,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To disable:
+
+```properties
+gc.pressure.enabled=false
+```
+
 ## Endpoint Exposure
 
 Expected actuator paths:
