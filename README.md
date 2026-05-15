@@ -15,6 +15,9 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Auto-registration and heartbeat support
 - HTTP Basic registration support for secured BootLens servers
 - Early memory pressure monitor with configurable thresholds and rate-limited logging
+- GC pressure monitor tracking pause time as a percentage of wall-clock interval
+- File descriptor monitor with graceful fallback on non-Linux platforms
+- Railway auto-configuration deriving registration metadata from platform env vars
 
 Planned later:
 
@@ -341,28 +344,31 @@ or publish/install it and depend on the artifact from your build.
 
 ## Diagnostics Properties
 
-Prefix:
+Prefix: `bootlens.client.diagnostics`
 
-`bootlens.client.diagnostics`
+**General**
 
-Available properties:
+| Property | Default | Example / notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable all diagnostics features |
+| `endpoint-enabled` | `true` | Set to `false` to hide `/actuator/bootlensDiagnostics` while keeping supporting beans |
+| `allow-sensitive` | `false` | Must be `true` to allow operations tagged sensitive, e.g. `HEAP_DUMP` |
+| `allow-expensive` | `true` | Set to `false` to block operations tagged expensive, e.g. `GC_CLASS_HISTOGRAM` |
+| `sanitize-secrets` | `true` | Masks common secret-like keys in command output |
+| `sanitize-privacy` | `true` | Masks local paths, usernames, temp dirs, and machine names |
+| `include-classpath` | `false` | Includes `java.class.path` in `SYSTEM_PROPERTIES` output (can be very large) |
+| `max-output-chars` | `2000000` | Output longer than this is truncated before returning |
 
-- `enabled=true`
-- `endpoint-enabled=true`
-- `allow-sensitive=false`
-- `allow-expensive=true`
-- `log-class-histogram-at-vm-exit=false`
-- `thread-dump-to-file=false`
-- `sanitize-secrets=true`
-- `sanitize-privacy=true`
-- `include-classpath=false`
-- `max-output-chars=2000000`
-- `heap-dump.enabled=false`
-- `heap-dump.directory=`
-- `heap-dump.include-live-only=true`
-- `heap-dump.max-files=3`
-- `heap-dump.max-age=PT1H`
-- `heap-dump.allow-download=false`
+**Heap dump (`heap-dump.*`)**
+
+| Property | Default | Example / notes |
+|---|---|---|
+| `heap-dump.enabled` | `false` | Must be `true` to allow heap dump creation via the endpoint |
+| `heap-dump.directory` | *(system temp dir)* | `${java.io.tmpdir}/bootlens-heapdumps` |
+| `heap-dump.include-live-only` | `true` | Dump only live objects — smaller file, less GC pressure |
+| `heap-dump.max-files` | `3` | Older files beyond this limit are deleted automatically |
+| `heap-dump.max-age` | `PT1H` | Files older than this are deleted on the next request |
+| `heap-dump.allow-download` | `false` | Must be `true` to serve heap dump files via the endpoint |
 
 Minimal example:
 
@@ -390,33 +396,53 @@ bootlens.client.diagnostics.heap-dump.allow-download=true
 
 ## Registration Properties
 
-Prefix:
+Prefix: `bootlens.client.registration`
 
-`bootlens.client.registration`
+**Identity**
 
-Available properties:
+| Property | Default | Example / notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable all registration and heartbeat activity |
+| `app-id` | *(kebab-case of `app-name`)* | `trading-bot` — stable identifier used in registry paths |
+| `app-name` | *(`spring.application.name`)* | `Trading Bot` — human-readable name shown in BootLens UI |
+| `instance-id` | *(`appId-hostname-port`)* | `trading-bot-abc123` — must be unique per running instance |
+| `display-name` | *(empty)* | Optional override shown in BootLens instead of `app-name` |
 
-- `enabled=true`
-- `server-url=http://localhost:9090`
-- `app-id=`
-- `app-name=`
-- `username=`
-- `password=`
-- `instance-id=`
-- `display-name=`
-- `base-url=`
-- `actuator-base-url=`
-- `actuator-username=`
-- `actuator-password=`
-- `environment=`
-- `region=`
-- `team=`
-- `zone=`
-- `slot=`
-- `heartbeat-interval=PT10S`
-- `register-on-startup=true`
-- `deregister-on-shutdown=true`
-- `labels.*=...`
+**Server connection**
+
+| Property | Default | Example / notes |
+|---|---|---|
+| `server-url` | `http://localhost:9090` | `http://bootlens-server.railway.internal:9090` — points to BootLens server, not the monitored app |
+| `username` | *(none)* | BootLens registrant account username (not a human operator login) |
+| `password` | *(none)* | `${BOOTLENS_REGISTRANT_PASSWORD}` |
+
+**Callback URLs**
+
+| Property | Default | Example / notes |
+|---|---|---|
+| `base-url` | `http://localhost:${server.port}` | `https://my-app.up.railway.app` — app URL operators associate with this instance |
+| `actuator-base-url` | `http://localhost:${server.port}/actuator` | `http://my-app.railway.internal:8080/actuator` — must be reachable from BootLens server |
+| `actuator-username` | *(none)* | `${APP_ACTUATOR_USERNAME}` — used by BootLens server when calling back into the actuator |
+| `actuator-password` | *(none)* | `${APP_ACTUATOR_PASSWORD}` |
+
+**Deployment metadata**
+
+| Property | Default | Example / notes |
+|---|---|---|
+| `environment` | *(first active profile, or `local`)* | `prod`, `staging`, `dev` — shown in Fleet filters |
+| `region` | *(none)* | `eu-west-1`, `railway-eu-west` — set explicitly in hosted deployments |
+| `team` | *(none)* | `platform`, `payments` — answers "who owns this?" in Fleet overview |
+| `zone` | *(none)* | Optional availability zone or placement detail |
+| `slot` | *(none)* | Optional deployment slot or rollout lane |
+| `labels.*` | *(none)* | `labels.tier=premium`, `labels.topology=single-instance` — custom key-value metadata |
+
+**Lifecycle**
+
+| Property | Default | Example / notes |
+|---|---|---|
+| `register-on-startup` | `true` | Registers with BootLens server when the application is ready |
+| `deregister-on-shutdown` | `true` | Best-effort deregistration on JVM shutdown |
+| `heartbeat-interval` | `PT10S` | `PT30S` — interval between heartbeat calls to the BootLens server |
 
 Core metadata guidance:
 
@@ -620,17 +646,15 @@ other platforms), the post-processor does nothing and the standard defaults appl
 
 ## Memory Pressure Properties
 
-Prefix:
+Prefix: `memory.pressure`
 
-`memory.pressure`
-
-Available properties:
-
-- `enabled=true`
-- `warning-threshold-percent=75`
-- `critical-threshold-percent=85`
-- `emergency-threshold-percent=92`
-- `check-interval=60s`
+| Property | Default | Example / notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor entirely |
+| `warning-threshold-percent` | `75` | Log WARN when heap or container memory usage exceeds this % |
+| `critical-threshold-percent` | `85` | Log ERROR when usage exceeds this % |
+| `emergency-threshold-percent` | `92` | Log ERROR (EMERGENCY) when usage exceeds this % |
+| `check-interval` | `60s` | `30s` — how often to sample memory; minimum enforced at 5s |
 
 The monitor starts automatically with the application and logs a confirmation line at startup:
 
@@ -694,17 +718,15 @@ memory.pressure.enabled=false
 
 ## File Descriptor Properties
 
-Prefix:
+Prefix: `file.descriptors`
 
-`file.descriptors`
-
-Available properties:
-
-- `enabled=true`
-- `warning-threshold-percent=70`
-- `critical-threshold-percent=85`
-- `emergency-threshold-percent=95`
-- `check-interval=60s`
+| Property | Default | Example / notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor entirely |
+| `warning-threshold-percent` | `70` | Log WARN when open FDs exceed this % of the OS limit |
+| `critical-threshold-percent` | `85` | Log ERROR when open FDs exceed this % |
+| `emergency-threshold-percent` | `95` | Log ERROR (EMERGENCY) when open FDs exceed this % |
+| `check-interval` | `60s` | `30s` — how often to sample FD counts; minimum enforced at 5s |
 
 File descriptor exhaustion is a silent failure mode. When all file descriptors
 are in use, the JVM can no longer open sockets, files, or pipes. The application
@@ -771,17 +793,15 @@ file.descriptors.enabled=false
 
 ## GC Pressure Properties
 
-Prefix:
+Prefix: `gc.pressure`
 
-`gc.pressure`
-
-Available properties:
-
-- `enabled=true`
-- `warning-pause-percent=5`
-- `critical-pause-percent=20`
-- `emergency-pause-percent=40`
-- `check-interval=60s`
+| Property | Default | Example / notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the monitor entirely |
+| `warning-pause-percent` | `5` | Log WARN when GC pause time exceeds this % of the check interval |
+| `critical-pause-percent` | `20` | Log ERROR when GC pause time exceeds this % |
+| `emergency-pause-percent` | `40` | Log ERROR (EMERGENCY) when GC pause time exceeds this % |
+| `check-interval` | `60s` | `30s` — how often to sample GC statistics; minimum enforced at 5s |
 
 The GC pressure monitor complements the memory pressure monitor. Where the memory
 monitor detects *current* heap fill, the GC monitor detects *activity*: how much
