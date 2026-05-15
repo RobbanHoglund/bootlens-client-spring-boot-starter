@@ -692,6 +692,83 @@ To disable:
 memory.pressure.enabled=false
 ```
 
+## File Descriptor Properties
+
+Prefix:
+
+`file.descriptors`
+
+Available properties:
+
+- `enabled=true`
+- `warning-threshold-percent=70`
+- `critical-threshold-percent=85`
+- `emergency-threshold-percent=95`
+- `check-interval=60s`
+
+File descriptor exhaustion is a silent failure mode. When all file descriptors
+are in use, the JVM can no longer open sockets, files, or pipes. The application
+appears to hang or throws `Too many open files` errors that are difficult to
+diagnose after the fact. This monitor provides an early warning before the limit
+is reached.
+
+**Platform note:** file descriptor monitoring requires `com.sun.management.UnixOperatingSystemMXBean`,
+which is available on Linux and macOS but not on Windows. On unsupported platforms
+the monitor starts silently, logs a single debug message, and marks the snapshot
+as unavailable. No further checks or log entries are produced.
+
+On startup the monitor logs its configuration (Linux/macOS only):
+
+```
+INFO  File descriptor monitor active: interval=PT1M, thresholds warning=70% critical=85% emergency=95%, limit=65536
+```
+
+When a threshold is exceeded:
+
+```
+WARN  File descriptor pressure WARNING: 45875/65536 open (70.0%)
+ERROR File descriptor pressure CRITICAL: 55706/65536 open (85.0%)
+ERROR File descriptor pressure EMERGENCY: 62259/65536 open (95.0%)
+```
+
+Rate-limiting follows the same rules as the other monitors (WARNING 10 min,
+CRITICAL 5 min, EMERGENCY 2 min). Level changes always log immediately.
+
+The `/sys/fs/cgroup/memory.*` approach used for container memory has no
+equivalent for file descriptors — the JVM limit from the kernel is the
+right boundary to track.
+
+The latest snapshot is available at `/actuator/info` under the `fileDescriptors` key:
+
+```json
+{
+  "fileDescriptors": {
+    "available": true,
+    "open": 45875,
+    "max": 65536,
+    "percent": 70.0,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+On Windows or other unsupported platforms:
+
+```json
+{
+  "fileDescriptors": {
+    "available": false,
+    "checkedAt": "2026-05-15T12:00:00Z"
+  }
+}
+```
+
+To disable:
+
+```properties
+file.descriptors.enabled=false
+```
+
 ## GC Pressure Properties
 
 Prefix:
