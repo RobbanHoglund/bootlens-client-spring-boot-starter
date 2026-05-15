@@ -1,2 +1,3 @@
 com.bootlens.client.diagnostics.BootLensDiagnosticsAutoConfiguration
+com.bootlens.client.monitoring.MemoryPressureAutoConfiguration
 com.bootlens.client.registration.BootLensRegistrationAutoConfiguration
