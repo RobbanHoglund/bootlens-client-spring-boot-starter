@@ -22,4 +22,18 @@ public class MemoryPressureAutoConfiguration {
     public MemoryPressureInfoContributor memoryPressureInfoContributor(MemoryPressureMonitor monitor) {
         return new MemoryPressureInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "memoryPressureMonitorLevelSource")
+    public MonitorLevelSource memoryPressureMonitorLevelSource(MemoryPressureMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "memoryPressure"; }
+            public MemoryLevel currentLevel() {
+                MemorySnapshot s = monitor.lastSnapshot();
+                if (s == null) return MemoryLevel.OK;
+                double pct = s.containerPercent() != null ? s.containerPercent() : s.heapPercent();
+                return monitor.classify(pct);
+            }
+        };
+    }
 }

@@ -24,4 +24,16 @@ public class LogErrorRateAutoConfiguration {
     public LogErrorRateInfoContributor logErrorRateInfoContributor(LogErrorRateMonitor monitor) {
         return new LogErrorRateInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "logErrorRateMonitorLevelSource")
+    public MonitorLevelSource logErrorRateMonitorLevelSource(LogErrorRateMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "logErrors"; }
+            public MemoryLevel currentLevel() {
+                LogErrorRateSnapshot s = monitor.lastSnapshot();
+                return s == null ? MemoryLevel.OK : monitor.classify(s.errorsInInterval());
+            }
+        };
+    }
 }

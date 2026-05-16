@@ -22,4 +22,17 @@ public class MetaspaceAutoConfiguration {
     public MetaspaceInfoContributor metaspaceInfoContributor(MetaspaceMonitor monitor) {
         return new MetaspaceInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "metaspaceMonitorLevelSource")
+    public MonitorLevelSource metaspaceMonitorLevelSource(MetaspaceMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "metaspace"; }
+            public MemoryLevel currentLevel() {
+                MetaspaceSnapshot s = monitor.lastSnapshot();
+                if (s == null || !s.available() || !s.bounded()) return MemoryLevel.OK;
+                return monitor.classify(s.percent());
+            }
+        };
+    }
 }

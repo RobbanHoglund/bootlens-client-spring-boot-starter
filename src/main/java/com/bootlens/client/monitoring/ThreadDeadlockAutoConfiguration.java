@@ -22,4 +22,17 @@ public class ThreadDeadlockAutoConfiguration {
     public ThreadDeadlockInfoContributor threadDeadlockInfoContributor(ThreadDeadlockDetector detector) {
         return new ThreadDeadlockInfoContributor(detector);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "threadDeadlockMonitorLevelSource")
+    public MonitorLevelSource threadDeadlockMonitorLevelSource(ThreadDeadlockDetector detector) {
+        return new MonitorLevelSource() {
+            public String name() { return "threadDeadlock"; }
+            public MemoryLevel currentLevel() {
+                DeadlockSnapshot s = detector.lastSnapshot();
+                if (s == null) return MemoryLevel.OK;
+                return s.deadlocked() ? MemoryLevel.EMERGENCY : MemoryLevel.OK;
+            }
+        };
+    }
 }

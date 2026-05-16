@@ -22,4 +22,17 @@ public class FileDescriptorAutoConfiguration {
     public FileDescriptorInfoContributor fileDescriptorInfoContributor(FileDescriptorMonitor monitor) {
         return new FileDescriptorInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "fileDescriptorMonitorLevelSource")
+    public MonitorLevelSource fileDescriptorMonitorLevelSource(FileDescriptorMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "fileDescriptors"; }
+            public MemoryLevel currentLevel() {
+                FileDescriptorSnapshot s = monitor.lastSnapshot();
+                if (s == null || !s.available()) return MemoryLevel.OK;
+                return monitor.classify(s.percent());
+            }
+        };
+    }
 }

@@ -22,6 +22,7 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Thread deadlock detector — catches silent deadlocks and logs immediately with thread names
 - Log error rate monitor — alerts when ERROR log volume spikes above a threshold
 - Metaspace monitor — tracks class-loader memory; alerts before metaspace is exhausted
+- Monitor health indicator — aggregates all monitor levels into `/actuator/health`
 
 Planned later:
 
@@ -1171,6 +1172,116 @@ To disable:
 
 ```properties
 metaspace.enabled=false
+```
+
+## Monitor Health Indicator
+
+Prefix:
+
+`bootlens.client.health`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the health indicator entirely |
+
+The monitor health indicator aggregates the current pressure level from every active monitor
+into a single entry in `/actuator/health`. This is the only feature in the starter that can
+actively influence platform behaviour — load balancers, Railway restart policies, uptime checks,
+and Kubernetes liveness or readiness probes all act on health status.
+
+The mapping from monitor level to health status is fixed:
+
+| Monitor level | Health status | When |
+|---|---|---|
+| `OK` | `UP` | All monitors below warning threshold |
+| `WARNING` | `UP` | Elevated but not yet critical — app is still serving traffic normally |
+| `CRITICAL` | `OUT_OF_SERVICE` | App is struggling — traffic should be drained if possible |
+| `EMERGENCY` | `DOWN` | App should be taken out of rotation immediately |
+
+The indicator reports `DOWN` for thread deadlocks regardless of thresholds, because a deadlock
+is always unrecoverable without a restart.
+
+`WARNING` deliberately does not change health status. Warning is an early signal that gives
+operators time to react — it should not trigger a restart or traffic shift on its own.
+
+### What shows in `/actuator/health`
+
+Spring Boot aggregates all `HealthIndicator` beans. The BootLens indicator appears under the
+`bootLensMonitor` key. The overall application health becomes the worst status across all
+indicators.
+
+```json
+{
+  "status": "UP",
+  "components": {
+    "bootLensMonitor": {
+      "status": "UP",
+      "details": {
+        "memoryPressure": "OK",
+        "gcPressure": "OK",
+        "fileDescriptors": "OK",
+        "directMemory": "OK",
+        "threadDeadlock": "OK",
+        "logErrors": "WARNING",
+        "metaspace": "OK",
+        "worstLevel": "WARNING"
+      }
+    }
+  }
+}
+```
+
+When a monitor reaches CRITICAL:
+
+```json
+{
+  "status": "OUT_OF_SERVICE",
+  "components": {
+    "bootLensMonitor": {
+      "status": "OUT_OF_SERVICE",
+      "details": {
+        "memoryPressure": "CRITICAL",
+        "gcPressure": "OK",
+        "fileDescriptors": "OK",
+        "directMemory": "OK",
+        "threadDeadlock": "OK",
+        "logErrors": "OK",
+        "metaspace": "OK",
+        "worstLevel": "CRITICAL"
+      }
+    }
+  }
+}
+```
+
+### Platform behaviour at each status
+
+- **`UP`** — normal; platform sends traffic
+- **`OUT_OF_SERVICE`** — Railway and most platforms stop routing new requests to this instance
+- **`DOWN`** — platform marks the instance unhealthy; Railway restarts it based on restart policy
+
+### Exposing health details
+
+Spring Boot hides component details by default. To see the per-monitor breakdown shown above:
+
+```properties
+management.endpoint.health.show-details=always
+# or, to show details only when authenticated:
+management.endpoint.health.show-details=when-authorized
+```
+
+### Disabling individual monitors vs. the health indicator
+
+Disabling a monitor (`memory.pressure.enabled=false`) removes it from health entirely — its
+level source is not registered and it contributes nothing to the aggregate status.
+
+Disabling the health indicator (`bootlens.client.health.enabled=false`) stops all monitor
+levels from affecting health, but the monitors themselves keep running and logging.
+
+To disable:
+
+```properties
+bootlens.client.health.enabled=false
 ```
 
 ## Endpoint Exposure

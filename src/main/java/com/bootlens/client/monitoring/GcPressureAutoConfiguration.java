@@ -22,4 +22,16 @@ public class GcPressureAutoConfiguration {
     public GcPressureInfoContributor gcPressureInfoContributor(GcPressureMonitor monitor) {
         return new GcPressureInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "gcPressureMonitorLevelSource")
+    public MonitorLevelSource gcPressureMonitorLevelSource(GcPressureMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "gcPressure"; }
+            public MemoryLevel currentLevel() {
+                GcSnapshot s = monitor.lastSnapshot();
+                return s == null ? MemoryLevel.OK : monitor.classify(s.pausePercent());
+            }
+        };
+    }
 }

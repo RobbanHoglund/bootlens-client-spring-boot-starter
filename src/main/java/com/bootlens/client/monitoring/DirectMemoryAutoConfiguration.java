@@ -22,4 +22,17 @@ public class DirectMemoryAutoConfiguration {
     public DirectMemoryInfoContributor directMemoryInfoContributor(DirectMemoryMonitor monitor) {
         return new DirectMemoryInfoContributor(monitor);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "directMemoryMonitorLevelSource")
+    public MonitorLevelSource directMemoryMonitorLevelSource(DirectMemoryMonitor monitor) {
+        return new MonitorLevelSource() {
+            public String name() { return "directMemory"; }
+            public MemoryLevel currentLevel() {
+                DirectMemorySnapshot s = monitor.lastSnapshot();
+                if (s == null || !s.available()) return MemoryLevel.OK;
+                return monitor.classify(s.percent());
+            }
+        };
+    }
 }
