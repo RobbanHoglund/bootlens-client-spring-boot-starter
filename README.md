@@ -1256,9 +1256,29 @@ When a monitor reaches CRITICAL:
 
 ### Platform behaviour at each status
 
-- **`UP`** — normal; platform sends traffic
-- **`OUT_OF_SERVICE`** — Railway and most platforms stop routing new requests to this instance
-- **`DOWN`** — platform marks the instance unhealthy; Railway restarts it based on restart policy
+Health status alone does not cause restarts or traffic shifts. Platforms act on health
+only when explicitly configured to do so — for example by pointing a liveness or readiness
+probe at `/actuator/health`, or configuring a platform health-check policy.
+
+| Status | Meaning | What platforms typically do when configured |
+|---|---|---|
+| `UP` | Normal | Send traffic |
+| `OUT_OF_SERVICE` | App is struggling | Stop routing new requests |
+| `DOWN` | App should be restarted | Mark unhealthy; restart or replace |
+
+**Railway example** — add a health check in `railway.json` to let Railway act on the status:
+
+```json
+{
+  "deploy": {
+    "healthcheckPath": "/actuator/health",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
+```
+
+Without such configuration the health indicator is purely informational — visible in
+`/actuator/health` and readable by BootLens Server, but no automated action is taken.
 
 ### Exposing health details
 
