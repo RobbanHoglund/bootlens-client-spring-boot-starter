@@ -2,17 +2,16 @@ package com.bootlens.client.diagnostics;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
-import org.springframework.boot.health.autoconfigure.registry.HealthContributorRegistryAutoConfiguration;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.core.Ordered;
 
@@ -21,7 +20,7 @@ import org.springframework.core.Ordered;
  * supporting services.
  */
 @AutoConfiguration
-@AutoConfigureAfter(HealthContributorRegistryAutoConfiguration.class)
+@AutoConfigureAfter(name = "org.springframework.boot.health.autoconfigure.registry.HealthContributorRegistryAutoConfiguration")
 @EnableConfigurationProperties(BootLensDiagnosticsProperties.class)
 @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class BootLensDiagnosticsAutoConfiguration {
@@ -62,7 +61,7 @@ public class BootLensDiagnosticsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(HealthContributorRegistry.class)
+    @ConditionalOnBean(type = "org.springframework.boot.health.registry.HealthContributorRegistry")
     @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-enabled", havingValue = "true", matchIfMissing = true)
     public BootLensHealthDiagnosticsService bootLensHealthDiagnosticsService(
         BootLensDiagnosticsProperties properties,
