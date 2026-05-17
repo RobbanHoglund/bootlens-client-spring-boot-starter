@@ -1,0 +1,74 @@
+package com.bootlens.client.profiling;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+class AsyncProfilerAutoConfigurationTest {
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+        .withConfiguration(
+            org.springframework.boot.autoconfigure.AutoConfigurations.of(
+                AsyncProfilerAutoConfiguration.class
+            )
+        );
+
+    @Test
+    void beansAreRegisteredByDefault() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(AsyncProfilerService.class);
+            assertThat(context).hasSingleBean(AsyncProfilerEndpoint.class);
+            assertThat(context).hasSingleBean(AsyncProfilerProperties.class);
+        });
+    }
+
+    @Test
+    void beansAreNotRegisteredWhenDisabled() {
+        contextRunner
+            .withPropertyValues("bootlens.client.profiler.enabled=false")
+            .run(context -> {
+                assertThat(context).doesNotHaveBean(AsyncProfilerService.class);
+                assertThat(context).doesNotHaveBean(AsyncProfilerEndpoint.class);
+            });
+    }
+
+    @Test
+    void customOutputDirIsApplied() {
+        contextRunner
+            .withPropertyValues("bootlens.client.profiler.output-dir=/custom/dir")
+            .run(context -> {
+                AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+                assertThat(props.getOutputDir()).isEqualTo("/custom/dir");
+            });
+    }
+
+    @Test
+    void customDefaultEventIsApplied() {
+        contextRunner
+            .withPropertyValues("bootlens.client.profiler.default-event=alloc")
+            .run(context -> {
+                AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+                assertThat(props.getDefaultEvent()).isEqualTo("alloc");
+            });
+    }
+
+    @Test
+    void customDefaultFormatIsApplied() {
+        contextRunner
+            .withPropertyValues("bootlens.client.profiler.default-format=jfr")
+            .run(context -> {
+                AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+                assertThat(props.getDefaultFormat())
+                    .isEqualTo(AsyncProfilerProperties.OutputFormat.JFR);
+            });
+    }
+
+    @Test
+    void maxDurationDefaultIsFiveMinutes() {
+        contextRunner.run(context -> {
+            AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+            assertThat(props.getMaxDuration().toSeconds()).isEqualTo(300);
+        });
+    }
+}

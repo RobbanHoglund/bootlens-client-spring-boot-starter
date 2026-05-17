@@ -1,5 +1,6 @@
 com.bootlens.client.diagnostics.BootLensClientInfoAutoConfiguration
 com.bootlens.client.diagnostics.BootLensDiagnosticsAutoConfiguration
+com.bootlens.client.profiling.AsyncProfilerAutoConfiguration
 com.bootlens.client.monitoring.BootLensMonitorHealthAutoConfiguration
 com.bootlens.client.monitoring.DirectMemoryAutoConfiguration
 com.bootlens.client.monitoring.FileDescriptorAutoConfiguration
