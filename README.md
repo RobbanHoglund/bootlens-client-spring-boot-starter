@@ -23,6 +23,7 @@ It also auto-registers the application with BootLens Server and sends periodic h
 - Log error rate monitor — alerts when ERROR log volume spikes above a threshold
 - Metaspace monitor — tracks class-loader memory; alerts before metaspace is exhausted
 - Monitor health indicator — aggregates all monitor levels into `/actuator/health`
+- Embedded async-profiler — CPU, allocation, wall-clock, and lock profiling via `/actuator/bootlensProfiler` with flame graph download and live in-memory snapshots
 
 Planned later:
 
@@ -1189,6 +1190,274 @@ To disable:
 metaspace.enabled=false
 ```
 
+## Async Profiler
+
+Async-profiler is a low-overhead sampling profiler for the JVM that uses OS-level APIs to collect CPU, allocation, wall-clock, and lock contention data. Unlike JVMTI-based profilers, it avoids safepoint bias and can profile native frames. This integration exposes async-profiler through a Spring Boot Actuator endpoint, making it possible to start and stop profiling sessions, download flame graphs, and inspect live snapshots — all via HTTP, without connecting a separate profiling tool to the running process.
+
+The bundled dependency (`me.bechberger:ap-loader-all:3.0-9`) ships native libraries for Linux x64, Linux arm64, and macOS inside the JAR. No manual installation is needed on those platforms.
+
+### Platform support
+
+Linux x64, Linux arm64, and macOS are supported. On Windows the endpoint is available but returns `UNAVAILABLE`; profiling operations are not possible.
+
+### Exposing the endpoint
+
+```properties
+management.endpoints.web.exposure.include=bootlensProfiler
+```
+
+### Properties
+
+Prefix: `bootlens.client.profiler`
+
+| Property | Default | Notes |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable the integration entirely |
+| `output-dir` | `${java.io.tmpdir}/bootlens-profiles` | Directory where output files are written |
+| `default-event` | `cpu` | Profiling event: `cpu`, `alloc`, `wall`, `lock` |
+| `default-duration` | `30s` | Session length when not specified in the request |
+| `default-format` | `flamegraph` | Output format: `flamegraph`, `jfr`, `tree`, `collapsed` |
+| `max-duration` | `300s` | Requests longer than this are silently capped |
+| `dump-flat-max-methods` | `50` | Max methods returned by the `/flat` operation |
+| `dump-traces-max-traces` | `10` | Max traces returned by the `/traces` operation |
+
+### Events
+
+`cpu` — Samples threads that are consuming CPU time. Use this to find hot code paths during CPU spikes or high-load scenarios. This is the default.
+
+`alloc` — Samples threads at the point of heap allocation. Use this when investigating allocation pressure, GC pauses, or suspected memory leaks. The flame graph shows which code paths allocate the most heap.
+
+`wall` — Samples all threads at regular wall-clock intervals regardless of CPU activity. Use this to find threads that are blocked, waiting, or spending time in I/O. Useful when CPU usage is low but latency is high.
+
+`lock` — Captures Java monitor lock contention. Use this to find threads competing for the same lock and identify synchronization bottlenecks.
+
+### Output formats
+
+`flamegraph` — Interactive HTML flame graph. Open in any browser. The width of each frame represents its share of the total samples. This is the default format and the most useful starting point.
+
+`jfr` — JDK Flight Recorder format. Open in JDK Mission Control or IntelliJ IDEA. Use this when you need deeper analysis tooling or want to correlate profiling data with JFR events.
+
+`tree` — Interactive HTML call tree. Presents the same data as a flame graph but in a top-down tree view.
+
+`collapsed` — Collapsed stack format compatible with `flamegraph.pl` and [speedscope](https://www.speedscope.app/). Use this when you want to process or visualize the data in an external tool.
+
+### Endpoints
+
+**GET /actuator/bootlensProfiler** — current status
+
+When idle:
+
+```json
+{
+  "state": "IDLE",
+  "profilerAvailable": true,
+  "activeSessionId": null,
+  "lastSessionId": "abc123def456",
+  "lastOutputFile": "/tmp/bootlens-profiles/bootlens-abc123def456.html",
+  "lastFormat": "flamegraph",
+  "lastCompletedAt": "2026-05-17T14:00:30Z",
+  "lastSessionSucceeded": true
+}
+```
+
+When a session is running:
+
+```json
+{
+  "state": "RUNNING",
+  "profilerAvailable": true,
+  "activeSessionId": "abc123def456",
+  "activeEvent": "cpu",
+  "activeFormat": "flamegraph",
+  "activeStartedAt": "2026-05-17T14:00:00Z",
+  "activeRemainingSeconds": 24
+}
+```
+
+On Windows or when the native library fails to load:
+
+```json
+{
+  "state": "UNAVAILABLE",
+  "profilerAvailable": false,
+  "profilerLoadError": "No native library for this platform"
+}
+```
+
+---
+
+**POST /actuator/bootlensProfiler** — start a profiling session
+
+All request fields are optional and fall back to the configured defaults.
+
+```json
+{ "event": "cpu", "durationSeconds": 60, "format": "flamegraph" }
+```
+
+Response when started:
+
+```json
+{
+  "status": "STARTED",
+  "sessionId": "abc123def456",
+  "event": "cpu",
+  "format": "flamegraph",
+  "durationSeconds": 60,
+  "outputFile": "/tmp/bootlens-profiles/bootlens-abc123def456.html"
+}
+```
+
+If a session is already active:
+
+```json
+{
+  "status": "ALREADY_RUNNING",
+  "sessionId": "abc123def456",
+  "message": "A profiling session is already active."
+}
+```
+
+---
+
+**DELETE /actuator/bootlensProfiler** — stop the current session early
+
+The output file is written immediately and the response contains the filename for download.
+
+```json
+{
+  "status": "STOPPED",
+  "sessionId": "abc123def456",
+  "outputFile": "/tmp/bootlens-profiles/bootlens-abc123def456.html",
+  "format": "flamegraph",
+  "automatic": false
+}
+```
+
+---
+
+**GET /actuator/bootlensProfiler/download/{filename}** — download an output file
+
+Returns the file with an appropriate content type: `text/html` for flamegraph and tree, `application/octet-stream` for JFR, `text/plain` for collapsed. Only the bare filename is accepted — no path separators or `..` are allowed.
+
+---
+
+**In-memory dump operations** — work during a running session or after one completes and return data directly without writing a new file.
+
+**GET /actuator/bootlensProfiler/flat** — top hottest methods
+
+Use `?limit=N` to override `dump-flat-max-methods`.
+
+```json
+{
+  "status": "OK",
+  "type": "flat",
+  "data": "--- Execution profile ---\n  ns  percent  samples  top\n..."
+}
+```
+
+**GET /actuator/bootlensProfiler/traces** — top call traces
+
+Use `?limit=N` to override `dump-traces-max-traces`.
+
+```json
+{
+  "status": "OK",
+  "type": "traces",
+  "data": "--- 1000000000 ns (10.0%), 250 samples\n  java/lang/Thread.sleep..."
+}
+```
+
+**GET /actuator/bootlensProfiler/collapsed** — collapsed stacks compatible with FlameGraph and speedscope
+
+```json
+{
+  "status": "OK",
+  "type": "collapsed",
+  "data": "java/lang/Thread.sleep;java/util/concurrent/...\n..."
+}
+```
+
+**GET /actuator/bootlensProfiler/samples** — number of samples collected so far
+
+```json
+{ "available": true, "samples": 4821, "errorMessage": null }
+```
+
+**GET /actuator/bootlensProfiler/version** — native library version
+
+```json
+{ "available": true, "version": "3.0", "errorMessage": null }
+```
+
+### Typical workflows
+
+**Profile a CPU spike**
+
+1. Notice high CPU in metrics.
+2. Start a `cpu` session for 60 seconds.
+3. When complete, download the flamegraph using the filename from the start response.
+4. Alternatively, call `/flat` for a quick text summary without downloading a file.
+
+**Live snapshot during an incident**
+
+1. Start a `cpu` session for 120 seconds.
+2. While it is running, call `/flat?limit=20` to see the hottest methods so far.
+3. Call `/samples` to confirm enough samples have been collected.
+4. Call `/traces` for a call-tree snapshot.
+5. Call `DELETE` to stop early and download the full flamegraph immediately.
+
+**Find allocation pressure**
+
+1. Start a session with `event=alloc` and `format=flamegraph`.
+2. After the session completes, download the flamegraph.
+3. The flame graph shows which code paths are responsible for the most heap allocations.
+
+### curl examples
+
+```bash
+# Check status
+curl http://localhost:8080/actuator/bootlensProfiler
+
+# Start CPU profiling for 60 seconds
+curl -X POST http://localhost:8080/actuator/bootlensProfiler \
+  -H 'Content-Type: application/json' \
+  -d '{"event":"cpu","durationSeconds":60,"format":"flamegraph"}'
+
+# Live snapshot while profiling is running
+curl http://localhost:8080/actuator/bootlensProfiler/flat
+curl http://localhost:8080/actuator/bootlensProfiler/samples
+
+# Stop early
+curl -X DELETE http://localhost:8080/actuator/bootlensProfiler
+
+# Download result (use filename from start or stop response)
+curl -O http://localhost:8080/actuator/bootlensProfiler/download/bootlens-abc123def456.html
+
+# Profile memory allocations
+curl -X POST http://localhost:8080/actuator/bootlensProfiler \
+  -H 'Content-Type: application/json' \
+  -d '{"event":"alloc","durationSeconds":30,"format":"flamegraph"}'
+
+# Profile as JFR for JDK Mission Control
+curl -X POST http://localhost:8080/actuator/bootlensProfiler \
+  -H 'Content-Type: application/json' \
+  -d '{"event":"cpu","durationSeconds":60,"format":"jfr"}'
+curl -O http://localhost:8080/actuator/bootlensProfiler/download/bootlens-abc123def456.jfr
+
+# Get native profiler version
+curl http://localhost:8080/actuator/bootlensProfiler/version
+```
+
+### Security
+
+The download endpoint only serves files from the configured output directory. Filenames containing path separators or `..` are rejected. In production, protect the profiler endpoint with the same access controls applied to other sensitive actuator endpoints — restrict the actuator port to an internal network interface or require authentication via Spring Security. Profiling output can contain sensitive stack frames and call paths.
+
+To disable:
+
+```properties
+bootlens.client.profiler.enabled=false
+```
+
 ## Monitor Health Indicator
 
 **Spring Boot version note:** the health indicator requires Spring Boot 4.x
@@ -1334,6 +1603,16 @@ Expected actuator paths:
 - `POST /actuator/bootlensDiagnostics/{operation}`
 - `GET /actuator/bootlensDiagnostics/heap-dumps/{id}` when heap dump download is enabled
 
+- `GET /actuator/bootlensProfiler`
+- `POST /actuator/bootlensProfiler`
+- `DELETE /actuator/bootlensProfiler`
+- `GET /actuator/bootlensProfiler/flat[?limit=N]`
+- `GET /actuator/bootlensProfiler/traces[?limit=N]`
+- `GET /actuator/bootlensProfiler/collapsed`
+- `GET /actuator/bootlensProfiler/samples`
+- `GET /actuator/bootlensProfiler/version`
+- `GET /actuator/bootlensProfiler/download/{filename}`
+
 Supported operations:
 
 - `VM_FLAGS`
@@ -1355,12 +1634,23 @@ Supported operations:
 ## Example curl Commands
 
 ```bash
+# Diagnostics
 curl http://localhost:9091/actuator/bootlensDiagnostics
 curl http://localhost:9091/actuator/bootlensDiagnostics/operations
 curl -X POST http://localhost:9091/actuator/bootlensDiagnostics/THREAD_DUMP
 curl -X POST http://localhost:9091/actuator/bootlensDiagnostics/ENV
 curl -X POST http://localhost:9091/actuator/bootlensDiagnostics/HEAP_DUMP
 curl -O http://localhost:9091/actuator/bootlensDiagnostics/heap-dumps/{id}
+
+# Profiler
+curl http://localhost:9091/actuator/bootlensProfiler
+curl -X POST http://localhost:9091/actuator/bootlensProfiler \
+  -H 'Content-Type: application/json' \
+  -d '{"event":"cpu","durationSeconds":60,"format":"flamegraph"}'
+curl http://localhost:9091/actuator/bootlensProfiler/flat
+curl http://localhost:9091/actuator/bootlensProfiler/samples
+curl -X DELETE http://localhost:9091/actuator/bootlensProfiler
+curl -O http://localhost:9091/actuator/bootlensProfiler/download/bootlens-abc123def456.html
 ```
 
 ## Safety Notes
