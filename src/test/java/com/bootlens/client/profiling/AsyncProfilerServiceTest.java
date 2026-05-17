@@ -193,4 +193,80 @@ class AsyncProfilerServiceTest {
         assertThat(result.outputFile()).endsWith(".jfr");
         service.stop();
     }
+
+    // --- In-memory dump APIs ---
+
+    @Test
+    void versionIsReturnedWhenProfilerIsAvailable() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.VersionResult result = service.getVersion();
+        assertThat(result.available()).isTrue();
+        assertThat(result.version()).isNotBlank();
+    }
+
+    @Test
+    void versionIsUnavailableWhenNativeLibCannotLoad() {
+        assumeThat(service.status().profilerAvailable()).isFalse();
+
+        AsyncProfilerService.VersionResult result = service.getVersion();
+        assertThat(result.available()).isFalse();
+        assertThat(result.errorMessage()).isNotBlank();
+    }
+
+    @Test
+    void samplesIsZeroBeforeSessionStarts() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.SamplesResult result = service.getSamples();
+        assertThat(result.available()).isTrue();
+        assertThat(result.samples()).isGreaterThanOrEqualTo(0L);
+    }
+
+    @Test
+    void dumpFlatReturnsTextAfterSession() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.stop();
+
+        AsyncProfilerService.DumpResult result = service.dumpFlat(10);
+        assertThat(result.status()).isEqualTo("OK");
+        assertThat(result.type()).isEqualTo("flat");
+        assertThat(result.data()).isNotNull();
+    }
+
+    @Test
+    void dumpTracesReturnsTextAfterSession() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.stop();
+
+        AsyncProfilerService.DumpResult result = service.dumpTraces(5);
+        assertThat(result.status()).isEqualTo("OK");
+        assertThat(result.type()).isEqualTo("traces");
+        assertThat(result.data()).isNotNull();
+    }
+
+    @Test
+    void dumpCollapsedReturnsTextAfterSession() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.stop();
+
+        AsyncProfilerService.DumpResult result = service.dumpCollapsed();
+        assertThat(result.status()).isEqualTo("OK");
+        assertThat(result.type()).isEqualTo("collapsed");
+        assertThat(result.data()).isNotNull();
+    }
+
+    @Test
+    void dumpFlatReturnsUnavailableWhenNativeLibCannotLoad() {
+        assumeThat(service.status().profilerAvailable()).isFalse();
+
+        AsyncProfilerService.DumpResult result = service.dumpFlat(null);
+        assertThat(result.status()).isEqualTo("UNAVAILABLE");
+    }
 }

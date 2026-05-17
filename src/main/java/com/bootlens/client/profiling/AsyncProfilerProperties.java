@@ -37,6 +37,16 @@ public class AsyncProfilerProperties {
     private Duration maxDuration = Duration.ofSeconds(300);
 
     /**
+     * Maximum number of methods shown by the {@code /flat} in-memory dump.
+     */
+    private int dumpFlatMaxMethods = 50;
+
+    /**
+     * Maximum number of call traces shown by the {@code /traces} in-memory dump.
+     */
+    private int dumpTracesMaxTraces = 10;
+
+    /**
      * Supported profiling output formats.
      */
     public enum OutputFormat {
@@ -127,5 +137,21 @@ public class AsyncProfilerProperties {
 
     public void setMaxDuration(Duration maxDuration) {
         this.maxDuration = maxDuration;
+    }
+
+    public int getDumpFlatMaxMethods() {
+        return dumpFlatMaxMethods;
+    }
+
+    public void setDumpFlatMaxMethods(int dumpFlatMaxMethods) {
+        this.dumpFlatMaxMethods = dumpFlatMaxMethods;
+    }
+
+    public int getDumpTracesMaxTraces() {
+        return dumpTracesMaxTraces;
+    }
+
+    public void setDumpTracesMaxTraces(int dumpTracesMaxTraces) {
+        this.dumpTracesMaxTraces = dumpTracesMaxTraces;
     }
 }

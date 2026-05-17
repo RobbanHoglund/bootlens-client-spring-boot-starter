@@ -144,6 +144,99 @@ public class AsyncProfilerService {
     }
 
     /**
+     * Returns a flat text profile showing the top-N hottest methods by sample count.
+     * Can be called while a session is active (live snapshot) or after it has stopped.
+     *
+     * @param maxMethods maximum number of methods to include; if {@code null} the
+     *                   configured default ({@code bootlens.client.profiler.dump-flat-max-methods}) is used
+     */
+    public DumpResult dumpFlat(@Nullable Integer maxMethods) {
+        if (!profilerAvailable) {
+            return DumpResult.unavailable(profilerLoadError);
+        }
+        int limit = maxMethods != null ? maxMethods : properties.getDumpFlatMaxMethods();
+        try {
+            String data = AsyncProfiler.getInstance().dumpFlat(limit);
+            return DumpResult.ok("flat", data);
+        }
+        catch (Exception ex) {
+            return DumpResult.failed(ex.getMessage());
+        }
+    }
+
+    /**
+     * Returns the top-N call traces (stack-trace samples) as plain text.
+     * Can be called while a session is active (live snapshot) or after it has stopped.
+     *
+     * @param maxTraces maximum number of traces to include; if {@code null} the
+     *                  configured default ({@code bootlens.client.profiler.dump-traces-max-traces}) is used
+     */
+    public DumpResult dumpTraces(@Nullable Integer maxTraces) {
+        if (!profilerAvailable) {
+            return DumpResult.unavailable(profilerLoadError);
+        }
+        int limit = maxTraces != null ? maxTraces : properties.getDumpTracesMaxTraces();
+        try {
+            String data = AsyncProfiler.getInstance().dumpTraces(limit);
+            return DumpResult.ok("traces", data);
+        }
+        catch (Exception ex) {
+            return DumpResult.failed(ex.getMessage());
+        }
+    }
+
+    /**
+     * Returns collapsed stacks in-memory (no file written).
+     * Compatible with the <a href="https://github.com/brendangregg/FlameGraph">FlameGraph</a> tool.
+     * Can be called while a session is active (live snapshot) or after it has stopped.
+     */
+    public DumpResult dumpCollapsed() {
+        if (!profilerAvailable) {
+            return DumpResult.unavailable(profilerLoadError);
+        }
+        try {
+            String data = AsyncProfiler.getInstance().execute("collapsed");
+            return DumpResult.ok("collapsed", data);
+        }
+        catch (Exception ex) {
+            return DumpResult.failed(ex.getMessage());
+        }
+    }
+
+    /**
+     * Returns the number of profiling samples collected so far.
+     * Useful for monitoring collection progress during a running session.
+     */
+    public SamplesResult getSamples() {
+        if (!profilerAvailable) {
+            return new SamplesResult(false, -1L, profilerLoadError);
+        }
+        try {
+            long samples = AsyncProfiler.getInstance().getSamples();
+            return new SamplesResult(true, samples, null);
+        }
+        catch (Exception ex) {
+            return new SamplesResult(false, -1L, ex.getMessage());
+        }
+    }
+
+    /**
+     * Returns the version string of the loaded async-profiler native library.
+     */
+    public VersionResult getVersion() {
+        if (!profilerAvailable) {
+            return new VersionResult(false, null, profilerLoadError);
+        }
+        try {
+            String version = AsyncProfiler.getInstance().getVersion();
+            return new VersionResult(true, version, null);
+        }
+        catch (Exception ex) {
+            return new VersionResult(false, null, ex.getMessage());
+        }
+    }
+
+    /**
      * Returns the output {@link Path} for a given filename if it exists inside
      * the configured output directory (prevents path traversal).
      */
@@ -308,6 +401,36 @@ public class AsyncProfilerService {
                 null, null, false, "Failed to stop profiling: " + error);
         }
     }
+
+    public record DumpResult(
+        String status,
+        @Nullable String type,
+        @Nullable String data,
+        @Nullable String message
+    ) {
+        static DumpResult ok(String type, String data) {
+            return new DumpResult("OK", type, data, null);
+        }
+        static DumpResult unavailable(String error) {
+            return new DumpResult("UNAVAILABLE", null, null,
+                "async-profiler is not available: " + error);
+        }
+        static DumpResult failed(String error) {
+            return new DumpResult("FAILED", null, null, error);
+        }
+    }
+
+    public record SamplesResult(
+        boolean available,
+        long samples,
+        @Nullable String errorMessage
+    ) {}
+
+    public record VersionResult(
+        boolean available,
+        @Nullable String version,
+        @Nullable String errorMessage
+    ) {}
 
     public record ProfilerStatus(
         String state,
