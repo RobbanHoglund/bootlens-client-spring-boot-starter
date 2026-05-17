@@ -39,11 +39,13 @@ This repository is published under the Apache License 2.0. See
 ## Requirements
 
 - Java 25
-- Spring Boot 4.0.6 baseline
+- Spring Boot 3.x or 4.x
 - A build that can authenticate to GitHub Packages when consuming the published artifact
 
-This starter is currently built and tested against the Spring Boot 4.0.6 BOM
-and uses a Java 25 toolchain in its own build.
+This starter is built and tested against the Spring Boot 4.0.6 BOM with a Java 25 toolchain.
+All features work on Spring Boot 3.x except the monitor health indicator, which requires the
+Spring Boot 4.x health package (`org.springframework.boot.health.contributor`) and is silently
+skipped on Spring Boot 3.x.
 
 ## Build And Run Locally
 
@@ -1188,6 +1190,12 @@ metaspace.enabled=false
 ```
 
 ## Monitor Health Indicator
+
+**Spring Boot version note:** the health indicator requires Spring Boot 4.x
+(`org.springframework.boot.health.contributor.HealthIndicator`). On Spring Boot 3.x the
+auto-configuration is silently skipped — monitors keep running, rate-limited logging keeps
+working, and `/actuator/info` snapshots are still produced. Only the health integration into
+`/actuator/health` is absent.
 
 Prefix:
 
