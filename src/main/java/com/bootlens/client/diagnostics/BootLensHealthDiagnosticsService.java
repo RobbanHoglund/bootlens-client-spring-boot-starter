@@ -33,12 +33,12 @@ public class BootLensHealthDiagnosticsService {
     private static final long VERY_SLOW_THRESHOLD_MS = 2_000L;
 
     private final BootLensDiagnosticsProperties properties;
-    private final HealthContributorRegistry healthContributorRegistry;
+    private final ObjectProvider<HealthContributorRegistry> healthContributorRegistry;
     private final ObjectProvider<HealthEndpointGroups> healthEndpointGroups;
 
     public BootLensHealthDiagnosticsService(
         BootLensDiagnosticsProperties properties,
-        HealthContributorRegistry healthContributorRegistry,
+        ObjectProvider<HealthContributorRegistry> healthContributorRegistry,
         ObjectProvider<HealthEndpointGroups> healthEndpointGroups
     ) {
         this.properties = properties;
@@ -55,6 +55,15 @@ public class BootLensHealthDiagnosticsService {
                 List.of(),
                 List.of(),
                 "Health diagnostics disabled by configuration.");
+        }
+        if (healthContributorRegistry.getIfAvailable() == null) {
+            return new HealthLatencyDiagnostics(
+                Instant.now(),
+                "UNAVAILABLE",
+                0L,
+                List.of(),
+                List.of(),
+                "Health contributor registry is not available in this application context.");
         }
 
         ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
@@ -107,8 +116,9 @@ public class BootLensHealthDiagnosticsService {
         Map<String, GroupAccumulator> groupAccumulators = new LinkedHashMap<>();
         HealthEndpointGroups groups = healthEndpointGroups.getIfAvailable();
         int maxContributorCount = Math.max(1, properties.getHealthDiagnostics().getMaxContributorCount());
+        HealthContributorRegistry registry = healthContributorRegistry.getObject();
 
-        for (HealthContributors.Entry entry : healthContributorRegistry) {
+        for (HealthContributors.Entry entry : registry) {
             if (contributors.size() >= maxContributorCount) {
                 break;
             }

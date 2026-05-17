@@ -1,8 +1,7 @@
 package com.bootlens.client.diagnostics;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -20,7 +19,6 @@ import org.springframework.core.Ordered;
  * supporting services.
  */
 @AutoConfiguration
-@AutoConfigureAfter(name = "org.springframework.boot.health.autoconfigure.registry.HealthContributorRegistryAutoConfiguration")
 @EnableConfigurationProperties(BootLensDiagnosticsProperties.class)
 @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class BootLensDiagnosticsAutoConfiguration {
@@ -61,11 +59,11 @@ public class BootLensDiagnosticsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(type = "org.springframework.boot.health.registry.HealthContributorRegistry")
+    @ConditionalOnClass(name = "org.springframework.boot.health.registry.HealthContributorRegistry")
     @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-enabled", havingValue = "true", matchIfMissing = true)
     public BootLensHealthDiagnosticsService bootLensHealthDiagnosticsService(
         BootLensDiagnosticsProperties properties,
-        HealthContributorRegistry healthContributorRegistry,
+        ObjectProvider<HealthContributorRegistry> healthContributorRegistry,
         ObjectProvider<HealthEndpointGroups> healthEndpointGroups
     ) {
         return new BootLensHealthDiagnosticsService(properties, healthContributorRegistry, healthEndpointGroups);

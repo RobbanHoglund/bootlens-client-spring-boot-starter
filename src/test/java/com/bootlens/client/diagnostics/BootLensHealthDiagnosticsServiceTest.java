@@ -23,7 +23,7 @@ class BootLensHealthDiagnosticsServiceTest {
 
         BootLensHealthDiagnosticsService service = new BootLensHealthDiagnosticsService(
             properties,
-            registry,
+            registryProvider(registry),
             emptyProvider());
 
         BootLensHealthDiagnosticsService.HealthLatencyDiagnostics diagnostics = service.capture();
@@ -49,6 +49,33 @@ class BootLensHealthDiagnosticsServiceTest {
                 Thread.currentThread().interrupt();
             }
             return Health.up().withDetail("database", "ok").build();
+        };
+    }
+
+    private static ObjectProvider<org.springframework.boot.health.registry.HealthContributorRegistry> registryProvider(
+        org.springframework.boot.health.registry.HealthContributorRegistry registry
+    ) {
+        return new ObjectProvider<>() {
+            @Override
+            public org.springframework.boot.health.registry.HealthContributorRegistry getObject(Object... args) {
+                return registry;
+            }
+            @Override
+            public org.springframework.boot.health.registry.HealthContributorRegistry getIfAvailable() {
+                return registry;
+            }
+            @Override
+            public org.springframework.boot.health.registry.HealthContributorRegistry getIfUnique() {
+                return registry;
+            }
+            @Override
+            public org.springframework.boot.health.registry.HealthContributorRegistry getObject() {
+                return registry;
+            }
+            @Override
+            public java.util.Iterator<org.springframework.boot.health.registry.HealthContributorRegistry> iterator() {
+                return java.util.Collections.singletonList(registry).iterator();
+            }
         };
     }
 
