@@ -41,4 +41,16 @@ class BootLensEndpointTimingFilterTest {
         assertThat(response.getHeader(BootLensEndpointTimingFilter.DURATION_HEADER)).isNull();
         assertThat(response.getHeader(BootLensEndpointTimingFilter.NAME_HEADER)).isNull();
     }
+
+    @Test
+    void defaultsToActuatorBasePathWhenWebEndpointPropertiesAreUnavailable() throws Exception {
+        BootLensEndpointTimingFilter filter = new BootLensEndpointTimingFilter(new BootLensDiagnosticsProperties(), null);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/health");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getHeader(BootLensEndpointTimingFilter.DURATION_HEADER)).isNotBlank();
+        assertThat(response.getHeader(BootLensEndpointTimingFilter.NAME_HEADER)).isEqualTo("health");
+    }
 }

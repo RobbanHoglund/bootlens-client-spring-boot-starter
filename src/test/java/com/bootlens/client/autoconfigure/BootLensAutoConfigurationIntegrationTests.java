@@ -5,14 +5,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsAutoConfiguration;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsEndpoint;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsWebExtension;
+import com.bootlens.client.diagnostics.BootLensHealthDiagnosticsService;
 import com.bootlens.client.diagnostics.SecretSanitizer;
 import com.bootlens.client.diagnostics.VmDiagnostics;
 import com.bootlens.client.registration.BootLensRegistrationAutoConfiguration;
 import com.bootlens.client.registration.BootLensRegistrationClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.health.autoconfigure.contributor.HealthContributorAutoConfiguration;
+import org.springframework.boot.health.autoconfigure.registry.HealthContributorRegistryAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 class BootLensAutoConfigurationIntegrationTests {
 
@@ -21,6 +25,15 @@ class BootLensAutoConfigurationIntegrationTests {
             AutoConfigurations.of(
                 BootLensDiagnosticsAutoConfiguration.class,
                 BootLensRegistrationAutoConfiguration.class
+            )
+        );
+
+    private final ApplicationContextRunner healthDiagnosticsContextRunner = new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                HealthContributorAutoConfiguration.class,
+                HealthContributorRegistryAutoConfiguration.class,
+                BootLensDiagnosticsAutoConfiguration.class
             )
         );
 
@@ -67,8 +80,24 @@ class BootLensAutoConfigurationIntegrationTests {
     }
 
     @Test
+    void healthDiagnosticsServiceIsRegisteredAfterBootHealthRegistry() {
+        healthDiagnosticsContextRunner.run(context -> {
+            assertThat(context).hasSingleBean(BootLensHealthDiagnosticsService.class);
+            assertThat(context).hasSingleBean(BootLensDiagnosticsEndpoint.class);
+        });
+    }
+
+    @Test
     void servletWebExtensionIsRegisteredForWebApplications() {
         webContextRunner.run(context -> assertThat(context).hasSingleBean(BootLensDiagnosticsWebExtension.class));
+    }
+
+    @Test
+    void endpointTimingFilterIsRegisteredForWebApplications() {
+        webContextRunner.run(context -> {
+            assertThat(context).hasBean("bootLensEndpointTimingFilter");
+            assertThat(context).hasSingleBean(FilterRegistrationBean.class);
+        });
     }
 
     @Test

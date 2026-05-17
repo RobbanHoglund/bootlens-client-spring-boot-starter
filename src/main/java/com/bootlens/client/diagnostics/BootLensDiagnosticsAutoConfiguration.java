@@ -1,11 +1,13 @@
 package com.bootlens.client.diagnostics;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
+import org.springframework.boot.health.autoconfigure.registry.HealthContributorRegistryAutoConfiguration;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -19,6 +21,7 @@ import org.springframework.core.Ordered;
  * supporting services.
  */
 @AutoConfiguration
+@AutoConfigureAfter(HealthContributorRegistryAutoConfiguration.class)
 @EnableConfigurationProperties(BootLensDiagnosticsProperties.class)
 @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class BootLensDiagnosticsAutoConfiguration {
@@ -80,14 +83,13 @@ public class BootLensDiagnosticsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    @ConditionalOnBean(WebEndpointProperties.class)
     @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-timing-header-enabled", havingValue = "true", matchIfMissing = true)
     public FilterRegistrationBean<BootLensEndpointTimingFilter> bootLensEndpointTimingFilter(
         BootLensDiagnosticsProperties properties,
-        WebEndpointProperties webEndpointProperties
+        ObjectProvider<WebEndpointProperties> webEndpointProperties
     ) {
         FilterRegistrationBean<BootLensEndpointTimingFilter> registration = new FilterRegistrationBean<>(
-            new BootLensEndpointTimingFilter(properties, webEndpointProperties));
+            new BootLensEndpointTimingFilter(properties, webEndpointProperties.getIfAvailable()));
         registration.setOrder(Ordered.LOWEST_PRECEDENCE - 20);
         return registration;
     }

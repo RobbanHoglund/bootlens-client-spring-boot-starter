@@ -263,9 +263,9 @@ public class BootLensHealthDiagnosticsService {
         List<String> keys = details.keySet().stream().limit(maxEntries).toList();
         String prefix = keys.size() == 1 ? "1 detail key" : keys.size() + " detail keys";
         if (details.size() > keys.size()) {
-            return prefix + " · " + String.join(", ", keys) + ", +" + (details.size() - keys.size()) + " more";
+            return prefix + " | " + String.join(", ", keys) + ", +" + (details.size() - keys.size()) + " more";
         }
-        return prefix + " · " + String.join(", ", keys);
+        return prefix + " | " + String.join(", ", keys);
     }
 
     private String resolveGroupName(String rootName, HealthEndpointGroups groups) {
