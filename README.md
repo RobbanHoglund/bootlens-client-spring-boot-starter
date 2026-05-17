@@ -366,7 +366,17 @@ Prefix:
 | `sanitize-secrets` | `true` | Masks common secret-like property keys in output |
 | `sanitize-privacy` | `true` | Masks paths, usernames, and machine names in output |
 | `include-classpath` | `false` | Includes `java.class.path` in `SYSTEM_PROPERTIES` output |
+| `endpoint-timing-header-enabled` | `true` | Adds BootLens endpoint timing response headers for actuator requests |
 | `max-output-chars` | `2000000` | Truncates response output at this character count |
+
+### Health diagnostics properties
+
+| Property | Default | Notes |
+|---|---|---|
+| `health-diagnostics.enabled` | `true` | Enables the on-demand BootLens health contributor latency endpoint |
+| `health-diagnostics.timeout` | `PT5S` | Maximum time allowed for one explicit health diagnostics capture |
+| `health-diagnostics.max-contributor-count` | `128` | Maximum health contributors included in one diagnostics response |
+| `health-diagnostics.max-details-entries` | `8` | Maximum health detail entries summarized per contributor |
 
 ### Heap dump properties
 
@@ -390,6 +400,9 @@ bootlens.client.diagnostics.allow-sensitive=false
 bootlens.client.diagnostics.allow-expensive=true
 bootlens.client.diagnostics.sanitize-privacy=true
 bootlens.client.diagnostics.include-classpath=false
+bootlens.client.diagnostics.endpoint-timing-header-enabled=true
+bootlens.client.diagnostics.health-diagnostics.enabled=true
+bootlens.client.diagnostics.health-diagnostics.timeout=PT5S
 ```
 
 Heap dump example for local debugging only:
