@@ -17,15 +17,26 @@ public class BootLensDiagnosticsEndpoint {
     private final BootLensDiagnosticsProperties properties;
     private final VmDiagnostics vmDiagnostics;
     private final HeapDumpManager heapDumpManager;
+    private final BootLensHealthDiagnosticsService healthDiagnosticsService;
+
+    public BootLensDiagnosticsEndpoint(
+        BootLensDiagnosticsProperties properties,
+        VmDiagnostics vmDiagnostics,
+        HeapDumpManager heapDumpManager,
+        BootLensHealthDiagnosticsService healthDiagnosticsService
+    ) {
+        this.properties = properties;
+        this.vmDiagnostics = vmDiagnostics;
+        this.heapDumpManager = heapDumpManager;
+        this.healthDiagnosticsService = healthDiagnosticsService;
+    }
 
     public BootLensDiagnosticsEndpoint(
         BootLensDiagnosticsProperties properties,
         VmDiagnostics vmDiagnostics,
         HeapDumpManager heapDumpManager
     ) {
-        this.properties = properties;
-        this.vmDiagnostics = vmDiagnostics;
-        this.heapDumpManager = heapDumpManager;
+        this(properties, vmDiagnostics, heapDumpManager, null);
     }
 
     @ReadOperation
@@ -44,10 +55,23 @@ public class BootLensDiagnosticsEndpoint {
         if ("operations".equalsIgnoreCase(selector)) {
             return descriptors();
         }
+        if ("health-diagnostics".equalsIgnoreCase(selector)) {
+            if (healthDiagnosticsService == null) {
+                return Map.of(
+                    "capturedAt", Instant.now(),
+                    "status", "UNAVAILABLE",
+                    "totalDurationMs", 0,
+                    "groups", List.of(),
+                    "contributors", List.of(),
+                    "error", "Health diagnostics service is not available in this application."
+                );
+            }
+            return healthDiagnosticsService.capture();
+        }
 
         return Map.of(
             "endpoint", "bootlensDiagnostics",
-            "message", "Unsupported read selector. Use /actuator/bootlensDiagnostics or /actuator/bootlensDiagnostics/operations."
+            "message", "Unsupported read selector. Use /actuator/bootlensDiagnostics, /actuator/bootlensDiagnostics/operations, or /actuator/bootlensDiagnostics/health-diagnostics."
         );
     }
 

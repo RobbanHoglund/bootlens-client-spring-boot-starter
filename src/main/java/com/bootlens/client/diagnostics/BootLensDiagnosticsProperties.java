@@ -23,8 +23,10 @@ public class BootLensDiagnosticsProperties {
     private boolean sanitizeSecrets = true;
     private boolean sanitizePrivacy = true;
     private boolean includeClasspath = false;
+    private boolean endpointTimingHeaderEnabled = true;
     private int maxOutputChars = 2_000_000;
     private final HeapDump heapDump = new HeapDump();
+    private final HealthDiagnostics healthDiagnostics = new HealthDiagnostics();
 
     public boolean isEnabled() {
         return enabled;
@@ -106,8 +108,20 @@ public class BootLensDiagnosticsProperties {
         this.maxOutputChars = maxOutputChars;
     }
 
+    public boolean isEndpointTimingHeaderEnabled() {
+        return endpointTimingHeaderEnabled;
+    }
+
+    public void setEndpointTimingHeaderEnabled(boolean endpointTimingHeaderEnabled) {
+        this.endpointTimingHeaderEnabled = endpointTimingHeaderEnabled;
+    }
+
     public HeapDump getHeapDump() {
         return heapDump;
+    }
+
+    public HealthDiagnostics getHealthDiagnostics() {
+        return healthDiagnostics;
     }
 
     /**
@@ -168,6 +182,46 @@ public class BootLensDiagnosticsProperties {
 
         public void setAllowDownload(boolean allowDownload) {
             this.allowDownload = allowDownload;
+        }
+    }
+
+    public static class HealthDiagnostics {
+
+        private boolean enabled = true;
+        private Duration timeout = Duration.ofSeconds(5);
+        private int maxContributorCount = 128;
+        private int maxDetailsEntries = 8;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Duration getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(Duration timeout) {
+            this.timeout = timeout;
+        }
+
+        public int getMaxContributorCount() {
+            return maxContributorCount;
+        }
+
+        public void setMaxContributorCount(int maxContributorCount) {
+            this.maxContributorCount = maxContributorCount;
+        }
+
+        public int getMaxDetailsEntries() {
+            return maxDetailsEntries;
+        }
+
+        public void setMaxDetailsEntries(int maxDetailsEntries) {
+            this.maxDetailsEntries = maxDetailsEntries;
         }
     }
 }

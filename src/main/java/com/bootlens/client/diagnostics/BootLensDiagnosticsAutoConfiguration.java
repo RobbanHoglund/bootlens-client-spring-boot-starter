@@ -4,8 +4,15 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
+import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
+import org.springframework.boot.health.registry.HealthContributorRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.Ordered;
 
 /**
  * Auto-configuration for the BootLens diagnostics actuator endpoint and its
@@ -44,9 +51,22 @@ public class BootLensDiagnosticsAutoConfiguration {
     public BootLensDiagnosticsEndpoint bootLensDiagnosticsEndpoint(
         BootLensDiagnosticsProperties properties,
         VmDiagnostics vmDiagnostics,
-        HeapDumpManager heapDumpManager
+        HeapDumpManager heapDumpManager,
+        ObjectProvider<BootLensHealthDiagnosticsService> healthDiagnosticsService
     ) {
-        return new BootLensDiagnosticsEndpoint(properties, vmDiagnostics, heapDumpManager);
+        return new BootLensDiagnosticsEndpoint(properties, vmDiagnostics, heapDumpManager, healthDiagnosticsService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(HealthContributorRegistry.class)
+    @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-enabled", havingValue = "true", matchIfMissing = true)
+    public BootLensHealthDiagnosticsService bootLensHealthDiagnosticsService(
+        BootLensDiagnosticsProperties properties,
+        HealthContributorRegistry healthContributorRegistry,
+        ObjectProvider<HealthEndpointGroups> healthEndpointGroups
+    ) {
+        return new BootLensHealthDiagnosticsService(properties, healthContributorRegistry, healthEndpointGroups);
     }
 
     @Bean
@@ -55,5 +75,20 @@ public class BootLensDiagnosticsAutoConfiguration {
     @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-enabled", havingValue = "true", matchIfMissing = true)
     public BootLensDiagnosticsWebExtension bootLensDiagnosticsWebExtension(HeapDumpManager heapDumpManager) {
         return new BootLensDiagnosticsWebExtension(heapDumpManager);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnBean(WebEndpointProperties.class)
+    @ConditionalOnProperty(prefix = "bootlens.client.diagnostics", name = "endpoint-timing-header-enabled", havingValue = "true", matchIfMissing = true)
+    public FilterRegistrationBean<BootLensEndpointTimingFilter> bootLensEndpointTimingFilter(
+        BootLensDiagnosticsProperties properties,
+        WebEndpointProperties webEndpointProperties
+    ) {
+        FilterRegistrationBean<BootLensEndpointTimingFilter> registration = new FilterRegistrationBean<>(
+            new BootLensEndpointTimingFilter(properties, webEndpointProperties));
+        registration.setOrder(Ordered.LOWEST_PRECEDENCE - 20);
+        return registration;
     }
 }

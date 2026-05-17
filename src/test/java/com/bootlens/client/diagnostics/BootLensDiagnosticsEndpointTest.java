@@ -3,6 +3,7 @@ package com.bootlens.client.diagnostics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -119,6 +120,21 @@ class BootLensDiagnosticsEndpointTest {
 
         assertThat(heapDumpDescriptor.enabled()).isFalse();
         assertThat(heapDumpDescriptor.disabledReason()).isEqualTo("Heap dump is disabled by client configuration.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void healthDiagnosticsSelectorReturnsUnavailablePayloadWhenServiceIsMissing() throws Exception {
+        BootLensDiagnosticsProperties properties = defaultProperties();
+        BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(properties, stubVmDiagnostics(), new HeapDumpManager(properties));
+
+        Object response = endpoint.operations("health-diagnostics");
+
+        assertThat(response).isInstanceOf(Map.class);
+        Map<String, Object> payload = (Map<String, Object>) response;
+        assertThat(payload).containsEntry("status", "UNAVAILABLE");
+        assertThat(payload).containsKey("contributors");
+        assertThat(payload).containsKey("groups");
     }
 
     private static BootLensDiagnosticsProperties defaultProperties() {
