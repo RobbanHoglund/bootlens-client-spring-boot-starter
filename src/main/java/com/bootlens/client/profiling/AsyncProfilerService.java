@@ -22,8 +22,10 @@ import org.springframework.lang.Nullable;
  * <p>Only one profiling session can be active at a time per JVM. All public
  * methods are {@code synchronized} to guarantee mutual exclusion.
  *
- * <p>Each session is automatically stopped after the requested duration;
- * callers may also stop it early via {@link #stop()}.
+ * <p>Each session is automatically stopped after the requested duration via
+ * the native {@code timeout=} profiler option. A backup scheduler additionally
+ * cleans up the {@link #activeSession} state after that time, so that
+ * {@link #status()} correctly transitions from RUNNING to IDLE.
  */
 public class AsyncProfilerService {
 
@@ -67,15 +69,24 @@ public class AsyncProfilerService {
     /**
      * Starts a new profiling session.
      *
-     * @param event    profiling event (cpu, alloc, wall, lock); null → default
+     * @param event    profiling event (cpu, alloc, wall, lock, nativemem, …); null → default
      * @param duration profiling duration; null → default
      * @param format   output format; null → default
+     * @param interval sampling interval — meaning depends on the event type:
+     *                 <ul>
+     *                   <li>CPU / wall-clock: time between samples, e.g. {@code "10ms"} or {@code "1000000"} (ns)</li>
+     *                   <li>alloc: allocation size between samples, e.g. {@code "512k"} or {@code "1m"}</li>
+     *                   <li>lock: lock-wait threshold, e.g. {@code "10ms"}</li>
+     *                 </ul>
+     *                 Accepts the same unit suffixes as async-profiler: ns, us, ms, s, k, m, g.
+     *                 {@code null} → use configured default (see {@code bootlens.client.profiler.default-interval}).
      * @return result describing the started session
      */
     public synchronized StartResult start(
         @Nullable String event,
         @Nullable Duration duration,
-        @Nullable AsyncProfilerProperties.OutputFormat format
+        @Nullable AsyncProfilerProperties.OutputFormat format,
+        @Nullable String interval
     ) {
         if (!profilerAvailable) {
             return StartResult.unavailable(profilerLoadError);
@@ -84,18 +95,20 @@ public class AsyncProfilerService {
             return StartResult.alreadyRunning(activeSession.sessionId());
         }
 
-        String resolvedEvent  = event    != null ? event    : properties.getDefaultEvent();
+        String resolvedEvent    = event    != null ? event    : properties.getDefaultEvent();
         Duration resolvedDuration = clampDuration(
             duration != null ? duration : properties.getDefaultDuration());
         AsyncProfilerProperties.OutputFormat resolvedFormat =
             format != null ? format : properties.getDefaultFormat();
+        String resolvedInterval = interval != null ? interval : properties.getDefaultInterval();
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Path outputDir = ensureOutputDir();
         String fileName = "bootlens-" + sessionId + resolvedFormat.getFileExtension();
         Path outputFile = outputDir.resolve(fileName);
 
-        String command = buildStartCommand(resolvedEvent, outputFile, resolvedFormat);
+        String command = buildStartCommand(resolvedEvent, outputFile, resolvedFormat,
+            resolvedInterval, resolvedDuration, properties.getJstackdepth(), properties.isThreads());
         try {
             AsyncProfiler.getInstance().execute(command);
         }
@@ -103,16 +116,19 @@ public class AsyncProfilerService {
             return StartResult.failed(ex.getMessage());
         }
 
-        ScheduledFuture<?> autoStop = scheduler.schedule(
+        // Backup scheduler: async-profiler stops itself via timeout=, but we need to
+        // update our internal state (activeSession → lastCompleted) when time is up.
+        // Add a small grace period so async-profiler's own stop runs first.
+        ScheduledFuture<?> stateCleanup = scheduler.schedule(
             this::autoStop,
-            resolvedDuration.toMillis(),
+            resolvedDuration.toMillis() + 1_000L,   // 1 s grace after native timeout
             TimeUnit.MILLISECONDS);
 
         activeSession = new ActiveSession(sessionId, resolvedEvent, outputFile, resolvedFormat,
-            resolvedDuration, Instant.now(), autoStop);
+            resolvedDuration, resolvedInterval, Instant.now(), stateCleanup);
 
         return StartResult.started(sessionId, resolvedEvent, resolvedFormat,
-            resolvedDuration, outputFile.toString());
+            resolvedDuration, resolvedInterval, outputFile.toString());
     }
 
     /**
@@ -269,12 +285,14 @@ public class AsyncProfilerService {
         ActiveSession session = activeSession;
         activeSession = null;
 
-        // Cancel the auto-stop future if we're stopping manually
-        if (!automatic && session.autoStopFuture() != null) {
-            session.autoStopFuture().cancel(false);
+        // Cancel the state-cleanup future when stopping manually
+        if (!automatic && session.stateCleanupFuture() != null) {
+            session.stateCleanupFuture().cancel(false);
         }
 
         try {
+            // async-profiler may have already stopped itself via timeout=; calling
+            // stop again is harmless — it simply writes any buffered data and returns.
             AsyncProfiler.getInstance().execute("stop");
         }
         catch (Exception ex) {
@@ -307,14 +325,40 @@ public class AsyncProfilerService {
         return dir;
     }
 
+    /**
+     * Builds the async-profiler {@code execute} command string.
+     *
+     * <p>Uses native {@code timeout=} so async-profiler auto-stops the collection
+     * even if the JVM scheduler is delayed. Our own scheduler additionally updates
+     * the internal state ({@link #activeSession}).
+     */
     private static String buildStartCommand(
         String event,
         Path outputFile,
-        AsyncProfilerProperties.OutputFormat format
+        AsyncProfilerProperties.OutputFormat format,
+        @Nullable String interval,
+        Duration duration,
+        int jstackdepth,
+        boolean threads
     ) {
-        return "start,event=" + event
-            + ",output=" + format.getCommandValue()
-            + ",file=" + outputFile.toAbsolutePath();
+        StringBuilder cmd = new StringBuilder();
+        cmd.append("start");
+        cmd.append(",event=").append(event);
+        cmd.append(",output=").append(format.getCommandValue());
+        cmd.append(",file=").append(outputFile.toAbsolutePath());
+        cmd.append(",timeout=").append(duration.toSeconds());
+
+        if (interval != null && !interval.isBlank()) {
+            cmd.append(",interval=").append(interval);
+        }
+        if (jstackdepth > 0) {
+            cmd.append(",jstackdepth=").append(jstackdepth);
+        }
+        if (threads) {
+            cmd.append(",threads");
+        }
+
+        return cmd.toString();
     }
 
     // -------------------------------------------------------------------------
@@ -327,8 +371,9 @@ public class AsyncProfilerService {
         Path outputFile,
         AsyncProfilerProperties.OutputFormat format,
         Duration requestedDuration,
+        @Nullable String interval,
         Instant startedAt,
-        @Nullable ScheduledFuture<?> autoStopFuture
+        @Nullable ScheduledFuture<?> stateCleanupFuture
     ) {}
 
     record CompletedSession(
@@ -352,26 +397,27 @@ public class AsyncProfilerService {
         @Nullable String event,
         @Nullable String format,
         @Nullable Long durationSeconds,
+        @Nullable String interval,
         @Nullable String outputFile,
         @Nullable String message
     ) {
         static StartResult started(String id, String event,
             AsyncProfilerProperties.OutputFormat format,
-            Duration duration, String file) {
+            Duration duration, @Nullable String interval, String file) {
             return new StartResult("STARTED", id, event,
-                format.name().toLowerCase(), duration.toSeconds(), file, null);
+                format.name().toLowerCase(), duration.toSeconds(), interval, file, null);
         }
         static StartResult alreadyRunning(String id) {
             return new StartResult("ALREADY_RUNNING", id,
-                null, null, null, null, "A profiling session is already active.");
+                null, null, null, null, null, "A profiling session is already active.");
         }
         static StartResult unavailable(String error) {
             return new StartResult("UNAVAILABLE", null,
-                null, null, null, null, "async-profiler is not available: " + error);
+                null, null, null, null, null, "async-profiler is not available: " + error);
         }
         static StartResult failed(String error) {
             return new StartResult("FAILED", null,
-                null, null, null, null, "Failed to start profiling: " + error);
+                null, null, null, null, null, "Failed to start profiling: " + error);
         }
     }
 
@@ -439,6 +485,7 @@ public class AsyncProfilerService {
         @Nullable String activeSessionId,
         @Nullable String activeEvent,
         @Nullable String activeFormat,
+        @Nullable String activeInterval,
         @Nullable Instant activeStartedAt,
         @Nullable Long activeRemainingSeconds,
         @Nullable String lastSessionId,
@@ -452,24 +499,24 @@ public class AsyncProfilerService {
             long remainingMs = session.requestedDuration().toMillis() - elapsedMs;
             return new ProfilerStatus("RUNNING", true, null,
                 session.sessionId(), session.event(),
-                session.format().name().toLowerCase(), session.startedAt(),
-                Math.max(0, remainingMs / 1000),
+                session.format().name().toLowerCase(), session.interval(),
+                session.startedAt(), Math.max(0, remainingMs / 1000),
                 null, null, null, null, null);
         }
         static ProfilerStatus idle(@Nullable CompletedSession last) {
             if (last == null) {
                 return new ProfilerStatus("IDLE", true, null,
-                    null, null, null, null, null,
+                    null, null, null, null, null, null,
                     null, null, null, null, null);
             }
             return new ProfilerStatus("IDLE", true, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 last.sessionId(), last.outputFile().toString(),
                 last.format().name().toLowerCase(), last.completedAt(), last.success());
         }
         static ProfilerStatus unavailable(@Nullable String error) {
             return new ProfilerStatus("UNAVAILABLE", false, error,
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 null, null, null, null, null);
         }
     }

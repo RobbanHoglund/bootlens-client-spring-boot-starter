@@ -53,7 +53,7 @@ class AsyncProfilerServiceTest {
         AsyncProfilerService.ProfilerStatus status = service.status();
         assumeThat(status.profilerAvailable()).isFalse();
 
-        AsyncProfilerService.StartResult result = service.start(null, null, null);
+        AsyncProfilerService.StartResult result = service.start(null, null, null, null);
         assertThat(result.status()).isEqualTo("UNAVAILABLE");
         assertThat(result.sessionId()).isNull();
         assertThat(result.message()).contains("async-profiler is not available");
@@ -84,7 +84,7 @@ class AsyncProfilerServiceTest {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
         AsyncProfilerService.StartResult result = service.start(
-            "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+            "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
 
         assertThat(result.status()).isEqualTo("STARTED");
         assertThat(result.sessionId()).isNotBlank();
@@ -98,7 +98,7 @@ class AsyncProfilerServiceTest {
     void statusIsRunningAfterStart() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
 
         AsyncProfilerService.ProfilerStatus status = service.status();
         assertThat(status.state()).isEqualTo("RUNNING");
@@ -111,7 +111,7 @@ class AsyncProfilerServiceTest {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
         AsyncProfilerService.StartResult started = service.start(
-            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         assertThat(started.status()).isEqualTo("STARTED");
 
         AsyncProfilerService.StopResult stopped = service.stop();
@@ -126,7 +126,7 @@ class AsyncProfilerServiceTest {
     void statusIsIdleAfterStop() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
 
         assertThat(service.status().state()).isEqualTo("IDLE");
@@ -138,10 +138,10 @@ class AsyncProfilerServiceTest {
     void startReturnsAlreadyRunningWhenSessionIsActive() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
 
         AsyncProfilerService.StartResult second = service.start(
-            "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+            "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         assertThat(second.status()).isEqualTo("ALREADY_RUNNING");
         assertThat(second.sessionId()).isNotBlank();
     }
@@ -160,7 +160,7 @@ class AsyncProfilerServiceTest {
 
         // Request 10 minutes but max is 60 seconds
         AsyncProfilerService.StartResult result = service.start(
-            "cpu", Duration.ofMinutes(10), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+            "cpu", Duration.ofMinutes(10), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         assertThat(result.status()).isEqualTo("STARTED");
         assertThat(result.durationSeconds()).isEqualTo(60L); // clamped to max
     }
@@ -169,13 +169,45 @@ class AsyncProfilerServiceTest {
     void defaultsAreAppliedWhenParametersAreNull() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        AsyncProfilerService.StartResult result = service.start(null, null, null);
+        AsyncProfilerService.StartResult result = service.start(null, null, null, null);
         assertThat(result.status()).isEqualTo("STARTED");
         assertThat(result.event()).isEqualTo(properties.getDefaultEvent());
         assertThat(result.format()).isEqualTo(
             properties.getDefaultFormat().name().toLowerCase());
         assertThat(result.durationSeconds()).isEqualTo(
             properties.getDefaultDuration().toSeconds());
+        assertThat(result.interval()).isNull(); // no default interval configured
+    }
+
+    @Test
+    void intervalIsIncludedInStartResult() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.StartResult result = service.start(
+            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "5ms");
+
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.interval()).isEqualTo("5ms");
+    }
+
+    @Test
+    void defaultIntervalFromPropertiesIsUsed() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        properties.setDefaultInterval("20ms");
+        AsyncProfilerService.StartResult result = service.start(null, null, null, null);
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.interval()).isEqualTo("20ms");
+    }
+
+    @Test
+    void explicitIntervalOverridesDefault() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        properties.setDefaultInterval("20ms");
+        AsyncProfilerService.StartResult result = service.start(
+            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "5ms");
+        assertThat(result.interval()).isEqualTo("5ms");
     }
 
     @Test
@@ -189,7 +221,7 @@ class AsyncProfilerServiceTest {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
         AsyncProfilerService.StartResult result = service.start(
-            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR);
+            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
         assertThat(result.outputFile()).endsWith(".jfr");
         service.stop();
     }
@@ -227,7 +259,7 @@ class AsyncProfilerServiceTest {
     void dumpFlatReturnsTextAfterSession() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
 
         AsyncProfilerService.DumpResult result = service.dumpFlat(10);
@@ -240,7 +272,7 @@ class AsyncProfilerServiceTest {
     void dumpTracesReturnsTextAfterSession() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
 
         AsyncProfilerService.DumpResult result = service.dumpTraces(5);
@@ -253,7 +285,7 @@ class AsyncProfilerServiceTest {
     void dumpCollapsedReturnsTextAfterSession() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH);
+        service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
 
         AsyncProfilerService.DumpResult result = service.dumpCollapsed();

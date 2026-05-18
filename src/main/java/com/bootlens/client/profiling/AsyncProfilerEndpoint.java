@@ -72,23 +72,30 @@ public class AsyncProfilerEndpoint {
     /**
      * Starts a new profiling session.
      *
-     * @param event           profiling event: {@code cpu}, {@code alloc}, {@code wall}, {@code lock}
+     * @param event           profiling event: {@code cpu}, {@code alloc}, {@code wall}, {@code lock},
+     *                        {@code nativemem}, {@code cache-misses}, etc.
      *                        (optional — defaults to {@code bootlens.client.profiler.default-event})
      * @param durationSeconds session length in seconds
      *                        (optional — defaults to {@code bootlens.client.profiler.default-duration})
      * @param format          output format: {@code flamegraph}, {@code jfr}, {@code tree}, {@code collapsed}
      *                        (optional — defaults to {@code bootlens.client.profiler.default-format})
+     * @param interval        sampling interval — meaning depends on event type:
+     *                        CPU/wall: time between samples (e.g. {@code "10ms"}, {@code "1000000"} ns);
+     *                        alloc: allocation size between samples (e.g. {@code "512k"});
+     *                        lock: lock-wait threshold (e.g. {@code "10ms"}).
+     *                        (optional — defaults to {@code bootlens.client.profiler.default-interval})
      */
     @WriteOperation
     public AsyncProfilerService.StartResult startProfiling(
         @Nullable String event,
         @Nullable Long durationSeconds,
-        @Nullable String format
+        @Nullable String format,
+        @Nullable String interval
     ) {
         Duration duration = durationSeconds != null ? Duration.ofSeconds(durationSeconds) : null;
         AsyncProfilerProperties.OutputFormat outputFormat =
             format != null ? AsyncProfilerProperties.OutputFormat.fromString(format) : null;
-        return service.start(event, duration, outputFormat);
+        return service.start(event, duration, outputFormat, interval);
     }
 
     /**
