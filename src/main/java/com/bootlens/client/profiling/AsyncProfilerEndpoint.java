@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.Map;
 
 import org.springframework.boot.actuate.endpoint.annotation.DeleteOperation;
+import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
@@ -28,6 +29,7 @@ import org.springframework.util.MimeType;
  * <p>Download support is exposed by the same web endpoint at
  * {@code /actuator/bootlensProfiler/download/{filename}}.
  */
+@Endpoint(id = "bootlensProfiler")
 public class AsyncProfilerEndpoint {
 
     private final AsyncProfilerService service;

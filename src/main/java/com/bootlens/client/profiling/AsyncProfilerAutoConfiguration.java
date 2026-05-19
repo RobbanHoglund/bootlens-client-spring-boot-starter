@@ -4,7 +4,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -43,12 +42,5 @@ public class AsyncProfilerAutoConfiguration {
     @ConditionalOnMissingBean
     public AsyncProfilerEndpoint asyncProfilerEndpoint(AsyncProfilerService service) {
         return new AsyncProfilerEndpoint(service);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    public AsyncProfilerController asyncProfilerController(AsyncProfilerService service) {
-        return new AsyncProfilerController(service);
     }
 }

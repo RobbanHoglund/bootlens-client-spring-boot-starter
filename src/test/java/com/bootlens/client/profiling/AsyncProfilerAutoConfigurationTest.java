@@ -32,10 +32,11 @@ class AsyncProfilerAutoConfigurationTest {
     }
 
     @Test
-    void webControllerIsRegisteredForServletApplications() {
+    void servletApplicationsUseActuatorEndpointWithoutRegisteringFallbackController() {
         webContextRunner.run(context -> {
             assertThat(context).hasSingleBean(AsyncProfilerService.class);
-            assertThat(context).hasSingleBean(AsyncProfilerController.class);
+            assertThat(context).hasSingleBean(AsyncProfilerEndpoint.class);
+            assertThat(context).doesNotHaveBean("asyncProfilerController");
         });
     }
 
