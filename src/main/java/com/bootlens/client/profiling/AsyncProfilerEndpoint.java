@@ -137,7 +137,7 @@ public class AsyncProfilerEndpoint {
      *                        lock: lock-wait threshold (e.g. {@code "5ms"}).
      *                        Accepts the same unit suffixes as async-profiler: ns, us, ms, s, k, m, g.
      *                        (optional — defaults to a sensible per-event constant from {@link ProfilerConstants})
-     * @param inverted        when {@code true}, render flamegraph output with root frames at the bottom.
+     * @param inverted        when {@code true}, render flamegraph output as icicle/top-down layout.
      */
     @WriteOperation
     public AsyncProfilerService.StartResult startProfiling(

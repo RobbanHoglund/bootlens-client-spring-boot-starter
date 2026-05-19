@@ -1342,7 +1342,7 @@ All fields are optional and fall back to their configured defaults.
 | `durationSeconds` | number | How long to profile. Default: `30`. Capped at `max-duration`. |
 | `format` | string | Output format (see [Output formats](#output-formats)). Default: `flamegraph` |
 | `interval` | string | Sampling interval or threshold (see [Sampling intervals](#sampling-intervals)). Default: per-event constant. |
-| `inverted` | boolean | Flamegraph-only. When `true`, asks async-profiler to render root frames at the bottom. |
+| `inverted` | boolean | Flamegraph-only. When `true`, asks async-profiler for icicle/top-down layout. Leave unset or `false` for classic root-at-bottom flamegraphs. |
 
 Minimal request (all defaults apply):
 
@@ -1353,7 +1353,7 @@ Minimal request (all defaults apply):
 CPU profile for 60 seconds:
 
 ```json
-{ "event": "cpu", "durationSeconds": 60, "format": "flamegraph", "inverted": true }
+{ "event": "cpu", "durationSeconds": 60, "format": "flamegraph" }
 ```
 
 Allocation profile with custom interval (one sample per 512 KB):
