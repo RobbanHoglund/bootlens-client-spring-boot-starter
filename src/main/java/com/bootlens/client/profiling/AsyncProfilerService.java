@@ -66,13 +66,13 @@ public class AsyncProfilerService {
         boolean available = false;
         String loadError = null;
         try {
-            AsyncProfiler.getInstance(); // triggers native lib load
+            AsyncProfiler profiler = AsyncProfiler.getInstance(); // triggers native lib load
             available = true;
-            log.info("async-profiler loaded, version: {}", AsyncProfiler.getInstance().getVersion());
+            log.info("async-profiler loaded, version: {}", profiler.getVersion());
         }
         catch (UnsatisfiedLinkError | Exception ex) {
-            loadError = ex.getMessage();
-            log.debug("async-profiler is not available on this host: {}", ex.getMessage());
+            loadError = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+            log.debug("async-profiler is not available on this host: {}", loadError);
         }
         this.profilerAvailable = available;
         this.profilerLoadError = loadError;
@@ -324,26 +324,41 @@ public class AsyncProfilerService {
             session.stateCleanupFuture().cancel(false);
         }
 
-        try {
-            // async-profiler may have already stopped itself via timeout=; calling
-            // stop again is harmless — it writes any buffered data and returns.
-            AsyncProfiler.getInstance().execute("stop");
-            log.info("async-profiler session {} stopped ({}), output: {}",
-                session.sessionId(), automatic ? "automatic" : "manual", session.outputFile());
-        }
-        catch (Exception ex) {
-            log.warn("Failed to stop async-profiler session {}: {}", session.sessionId(), ex.getMessage());
+        if (automatic) {
+            // async-profiler stopped itself via timeout= and already wrote the output file.
+            // Calling execute("stop") again would throw IllegalStateException ("Profiler is
+            // not started"). Determine success by checking whether the output was actually written.
+            boolean fileOk = session.outputFile().toFile().length() > 0;
+            String errorMessage = fileOk ? null : "Output file was not written";
+            log.info("async-profiler session {} timed out — output {}: {}",
+                session.sessionId(), fileOk ? "written" : "missing", session.outputFile());
             lastCompleted = new CompletedSession(session.sessionId(), session.event(),
                 session.outputFile(), session.format(), session.startedAt(), Instant.now(),
-                false, ex.getMessage());
-            return StopResult.failed(ex.getMessage());
+                fileOk, errorMessage);
+            return StopResult.stopped(session.sessionId(), session.outputFile().toString(),
+                session.format(), true);
+        }
+
+        // Manual stop — tell async-profiler to flush and write the output file now.
+        try {
+            AsyncProfiler.getInstance().execute("stop");
+            log.info("async-profiler session {} stopped manually — output: {}",
+                session.sessionId(), session.outputFile());
+        }
+        catch (Exception ex) {
+            String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+            log.warn("Failed to stop async-profiler session {}: {}", session.sessionId(), msg);
+            lastCompleted = new CompletedSession(session.sessionId(), session.event(),
+                session.outputFile(), session.format(), session.startedAt(), Instant.now(),
+                false, msg);
+            return StopResult.failed(msg);
         }
 
         lastCompleted = new CompletedSession(session.sessionId(), session.event(),
             session.outputFile(), session.format(), session.startedAt(), Instant.now(),
             true, null);
         return StopResult.stopped(session.sessionId(), session.outputFile().toString(),
-            session.format(), automatic);
+            session.format(), false);
     }
 
     private Duration clampDuration(Duration requested) {

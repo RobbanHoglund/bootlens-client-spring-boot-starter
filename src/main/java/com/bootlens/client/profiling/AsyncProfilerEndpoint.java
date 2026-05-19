@@ -80,10 +80,11 @@ public class AsyncProfilerEndpoint {
      * @param format          output format: {@code flamegraph}, {@code jfr}, {@code tree}, {@code collapsed}
      *                        (optional — defaults to {@code bootlens.client.profiler.default-format})
      * @param interval        sampling interval — meaning depends on event type:
-     *                        CPU/wall: time between samples (e.g. {@code "10ms"}, {@code "1000000"} ns);
-     *                        alloc: allocation size between samples (e.g. {@code "512k"});
-     *                        lock: lock-wait threshold (e.g. {@code "10ms"}).
-     *                        (optional — defaults to {@code bootlens.client.profiler.default-interval})
+     *                        cpu/wall/ctimer: time between samples (e.g. {@code "2ms"}, {@code "500us"});
+     *                        alloc/nativemem: allocation size between samples (e.g. {@code "512k"});
+     *                        lock: lock-wait threshold (e.g. {@code "5ms"}).
+     *                        Accepts the same unit suffixes as async-profiler: ns, us, ms, s, k, m, g.
+     *                        (optional — defaults to a sensible per-event constant from {@link ProfilerConstants})
      */
     @WriteOperation
     public AsyncProfilerService.StartResult startProfiling(

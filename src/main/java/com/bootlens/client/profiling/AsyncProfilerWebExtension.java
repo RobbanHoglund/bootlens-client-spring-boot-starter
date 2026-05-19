@@ -1,5 +1,6 @@
 package com.bootlens.client.profiling;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -62,6 +63,20 @@ public class AsyncProfilerWebExtension {
         if (!Files.exists(file) || !Files.isRegularFile(file)) {
             return new WebEndpointResponse<>(
                 Map.of("message", "Profiling output file not found: " + filename), 404);
+        }
+
+        try {
+            long fileSize = Files.size(file);
+            if (fileSize > ProfilerConstants.MAX_OUTPUT_BYTES) {
+                return new WebEndpointResponse<>(
+                    Map.of("message", "Profiling output file is too large to serve: "
+                        + (fileSize / (1024 * 1024)) + " MB (limit "
+                        + (ProfilerConstants.MAX_OUTPUT_BYTES / (1024 * 1024)) + " MB)"), 500);
+            }
+        }
+        catch (IOException ex) {
+            return new WebEndpointResponse<>(
+                Map.of("message", "Could not read profiling output file: " + ex.getMessage()), 500);
         }
 
         MimeType mimeType = resolveMimeType(filename);

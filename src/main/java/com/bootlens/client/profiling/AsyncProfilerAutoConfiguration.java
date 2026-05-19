@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(AsyncProfilerProperties.class)
 public class AsyncProfilerAutoConfiguration {
 
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     @ConditionalOnMissingBean
     public AsyncProfilerService asyncProfilerService(AsyncProfilerProperties properties) {
         return new AsyncProfilerService(properties);
