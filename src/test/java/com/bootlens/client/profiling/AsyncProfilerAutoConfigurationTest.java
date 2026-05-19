@@ -4,10 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 
 class AsyncProfilerAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+        .withConfiguration(
+            org.springframework.boot.autoconfigure.AutoConfigurations.of(
+                AsyncProfilerAutoConfiguration.class
+            )
+        );
+
+    private final WebApplicationContextRunner webContextRunner = new WebApplicationContextRunner()
         .withConfiguration(
             org.springframework.boot.autoconfigure.AutoConfigurations.of(
                 AsyncProfilerAutoConfiguration.class
@@ -20,6 +28,14 @@ class AsyncProfilerAutoConfigurationTest {
             assertThat(context).hasSingleBean(AsyncProfilerService.class);
             assertThat(context).hasSingleBean(AsyncProfilerEndpoint.class);
             assertThat(context).hasSingleBean(AsyncProfilerProperties.class);
+        });
+    }
+
+    @Test
+    void webControllerIsRegisteredForServletApplications() {
+        webContextRunner.run(context -> {
+            assertThat(context).hasSingleBean(AsyncProfilerService.class);
+            assertThat(context).hasSingleBean(AsyncProfilerController.class);
         });
     }
 

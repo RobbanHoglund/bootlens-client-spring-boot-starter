@@ -48,7 +48,7 @@ public class AsyncProfilerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    public AsyncProfilerWebExtension asyncProfilerWebExtension(AsyncProfilerService service) {
-        return new AsyncProfilerWebExtension(service);
+    public AsyncProfilerController asyncProfilerController(AsyncProfilerService service) {
+        return new AsyncProfilerController(service);
     }
 }

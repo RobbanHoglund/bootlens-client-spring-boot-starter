@@ -42,7 +42,7 @@ dependencyManagement {
 dependencies {
 	api 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-autoconfigure'
-	implementation 'me.bechberger:ap-loader-all:3.0-9'
+	api 'me.bechberger:ap-loader-all:3.0-9'
 	compileOnly 'org.springframework:spring-web'
 	compileOnly 'jakarta.servlet:jakarta.servlet-api'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
