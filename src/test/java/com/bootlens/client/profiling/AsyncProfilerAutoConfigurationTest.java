@@ -73,24 +73,6 @@ class AsyncProfilerAutoConfigurationTest {
     }
 
     @Test
-    void defaultIntervalIsNullByDefault() {
-        contextRunner.run(context -> {
-            AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
-            assertThat(props.getDefaultInterval()).isNull();
-        });
-    }
-
-    @Test
-    void customDefaultIntervalIsApplied() {
-        contextRunner
-            .withPropertyValues("bootlens.client.profiler.default-interval=10ms")
-            .run(context -> {
-                AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
-                assertThat(props.getDefaultInterval()).isEqualTo("10ms");
-            });
-    }
-
-    @Test
     void jstackdepthDefaultIsZero() {
         contextRunner.run(context -> {
             AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);

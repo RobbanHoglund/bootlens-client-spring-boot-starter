@@ -3,7 +3,6 @@ package com.bootlens.client.profiling;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.lang.Nullable;
 
 /**
  * Configuration properties for the embedded async-profiler integration.
@@ -22,7 +21,12 @@ public class AsyncProfilerProperties {
      */
     private String outputDir;
 
-    /** Profiling event to use when none is specified (cpu, alloc, wall, lock, nativemem, cache-misses, …). */
+    /**
+     * Profiling event to use when none is specified.
+     * Accepts async-profiler event names ({@code cpu}, {@code alloc}, {@code wall},
+     * {@code lock}, {@code ctimer}, {@code nativemem}, {@code nativememleak})
+     * or any case/hyphen variant recognised by {@link ProfilerEvent#fromString}.
+     */
     private String defaultEvent = "cpu";
 
     /** Profiling duration to use when none is specified. */
@@ -38,23 +42,10 @@ public class AsyncProfilerProperties {
     private Duration maxDuration = Duration.ofSeconds(300);
 
     /**
-     * Default sampling interval. Meaning varies by event type:
-     * <ul>
-     *   <li>CPU / wall-clock: time between samples — e.g. {@code 10ms}, {@code 1000000} (ns)</li>
-     *   <li>alloc: allocation size between samples — e.g. {@code 512k}, {@code 1m}</li>
-     *   <li>lock: lock wait threshold — e.g. {@code 10ms}</li>
-     * </ul>
-     * Accepts the same unit suffixes as async-profiler: {@code ns}, {@code us}, {@code ms},
-     * {@code s}, {@code k}, {@code m}, {@code g}. {@code null} means use async-profiler's
-     * built-in default (10 ms for CPU).
-     */
-    @Nullable
-    private String defaultInterval;
-
-    /**
      * Maximum stack depth captured per sample. Defaults to {@code 0} which lets
      * async-profiler use its own default (2048 frames). Reduce this (e.g. to 64)
      * to lower overhead when deep stacks are not interesting.
+     * Corresponds to the {@code jstackdepth} async-profiler option.
      */
     private int jstackdepth = 0;
 
@@ -166,15 +157,6 @@ public class AsyncProfilerProperties {
 
     public void setMaxDuration(Duration maxDuration) {
         this.maxDuration = maxDuration;
-    }
-
-    @Nullable
-    public String getDefaultInterval() {
-        return defaultInterval;
-    }
-
-    public void setDefaultInterval(@Nullable String defaultInterval) {
-        this.defaultInterval = defaultInterval;
     }
 
     public int getJstackdepth() {

@@ -50,8 +50,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void startReturnsUnavailableWhenNativeLibCannotLoad() {
-        AsyncProfilerService.ProfilerStatus status = service.status();
-        assumeThat(status.profilerAvailable()).isFalse();
+        assumeThat(service.status().profilerAvailable()).isFalse();
 
         AsyncProfilerService.StartResult result = service.start(null, null, null, null);
         assertThat(result.status()).isEqualTo("UNAVAILABLE");
@@ -61,8 +60,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void stopReturnsUnavailableWhenNativeLibCannotLoad() {
-        AsyncProfilerService.ProfilerStatus status = service.status();
-        assumeThat(status.profilerAvailable()).isFalse();
+        assumeThat(service.status().profilerAvailable()).isFalse();
 
         AsyncProfilerService.StopResult result = service.stop();
         assertThat(result.status()).isEqualTo("UNAVAILABLE");
@@ -172,15 +170,14 @@ class AsyncProfilerServiceTest {
         AsyncProfilerService.StartResult result = service.start(null, null, null, null);
         assertThat(result.status()).isEqualTo("STARTED");
         assertThat(result.event()).isEqualTo(properties.getDefaultEvent());
-        assertThat(result.format()).isEqualTo(
-            properties.getDefaultFormat().name().toLowerCase());
-        assertThat(result.durationSeconds()).isEqualTo(
-            properties.getDefaultDuration().toSeconds());
-        assertThat(result.interval()).isNull(); // no default interval configured
+        assertThat(result.format()).isEqualTo(properties.getDefaultFormat().name().toLowerCase());
+        assertThat(result.durationSeconds()).isEqualTo(properties.getDefaultDuration().toSeconds());
+        // Default cpu event → constant default interval
+        assertThat(result.interval()).isEqualTo(ProfilerConstants.CPU_INTERVAL);
     }
 
     @Test
-    void intervalIsIncludedInStartResult() {
+    void cpuEventUsesIntervalOption() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
         AsyncProfilerService.StartResult result = service.start(
@@ -191,23 +188,53 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
-    void defaultIntervalFromPropertiesIsUsed() {
+    void cpuDefaultIntervalIsAppliedWhenNoneSpecified() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        properties.setDefaultInterval("20ms");
-        AsyncProfilerService.StartResult result = service.start(null, null, null, null);
-        assertThat(result.status()).isEqualTo("STARTED");
-        assertThat(result.interval()).isEqualTo("20ms");
+        AsyncProfilerService.StartResult result = service.start(
+            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
+        assertThat(result.interval()).isEqualTo(ProfilerConstants.CPU_INTERVAL);
     }
 
     @Test
-    void explicitIntervalOverridesDefault() {
+    void wallDefaultIntervalIsApplied() {
         assumeThat(service.status().profilerAvailable()).isTrue();
 
-        properties.setDefaultInterval("20ms");
         AsyncProfilerService.StartResult result = service.start(
-            "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "5ms");
-        assertThat(result.interval()).isEqualTo("5ms");
+            "wall", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.interval()).isEqualTo(ProfilerConstants.WALL_INTERVAL);
+    }
+
+    @Test
+    void allocDefaultIntervalIsApplied() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.StartResult result = service.start(
+            "alloc", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.interval()).isEqualTo(ProfilerConstants.ALLOC_THRESHOLD);
+    }
+
+    @Test
+    void lockDefaultIntervalIsApplied() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.StartResult result = service.start(
+            "lock", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.interval()).isEqualTo(ProfilerConstants.LOCK_THRESHOLD);
+    }
+
+    @Test
+    void eventNameIsNormalizedToExternalName() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        // "NATIVE_MEM" should resolve to "nativemem"
+        AsyncProfilerService.StartResult result = service.start(
+            "NATIVE_MEM", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
+        assertThat(result.status()).isEqualTo("STARTED");
+        assertThat(result.event()).isEqualTo("nativemem");
     }
 
     @Test
