@@ -61,10 +61,11 @@ public class AsyncProfilerController {
         Long durationSeconds = longValue(request, "durationSeconds");
         String format = stringValue(request, "format");
         String interval = stringValue(request, "interval");
+        Boolean inverted = booleanValue(request, "inverted");
         Duration duration = durationSeconds != null ? Duration.ofSeconds(durationSeconds) : null;
         AsyncProfilerProperties.OutputFormat outputFormat =
             format != null ? AsyncProfilerProperties.OutputFormat.fromString(format) : null;
-        return service.start(event, duration, outputFormat, interval);
+        return service.start(event, duration, outputFormat, interval, inverted);
     }
 
     @DeleteMapping
@@ -150,5 +151,20 @@ public class AsyncProfilerController {
         catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    @Nullable
+    private static Boolean booleanValue(@Nullable Map<String, Object> request, String key) {
+        if (request == null) {
+            return null;
+        }
+        Object value = request.get(key);
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (value == null) {
+            return null;
+        }
+        return Boolean.parseBoolean(value.toString());
     }
 }

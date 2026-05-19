@@ -110,6 +110,16 @@ public class AsyncProfilerService {
         @Nullable AsyncProfilerProperties.OutputFormat format,
         @Nullable String interval
     ) {
+        return start(event, duration, format, interval, null);
+    }
+
+    public synchronized StartResult start(
+        @Nullable String event,
+        @Nullable Duration duration,
+        @Nullable AsyncProfilerProperties.OutputFormat format,
+        @Nullable String interval,
+        @Nullable Boolean inverted
+    ) {
         if (!profilerAvailable) {
             return StartResult.unavailable(profilerLoadError);
         }
@@ -134,7 +144,8 @@ public class AsyncProfilerService {
         String command;
         try {
             command = buildStartCommand(resolvedEvent, canonicalEvent, outputFile, resolvedFormat,
-                resolvedInterval, resolvedDuration, properties.getJstackdepth(), properties.isThreads());
+                resolvedInterval, resolvedDuration, properties.getJstackdepth(), properties.isThreads(),
+                Boolean.TRUE.equals(inverted));
         }
         catch (IllegalArgumentException ex) {
             return StartResult.failed(ex.getMessage());
@@ -416,7 +427,8 @@ public class AsyncProfilerService {
         @Nullable String interval,
         Duration duration,
         int jstackdepth,
-        boolean threads
+        boolean threads,
+        boolean inverted
     ) {
         String absPath = outputFile.toAbsolutePath().normalize().toString();
         if (absPath.contains(",")) {
@@ -445,6 +457,9 @@ public class AsyncProfilerService {
         }
         if (threads) {
             cmd.append(",threads");
+        }
+        if (inverted && format == AsyncProfilerProperties.OutputFormat.FLAMEGRAPH) {
+            cmd.append(",inverted");
         }
 
         // Native memory variants require extra flags
