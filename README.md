@@ -1354,6 +1354,15 @@ On Windows or when the native library fails to load:
 }
 ```
 
+If the error says async-profiler could not load from an extraction directory, the container is
+usually mounting that directory without execute permission. BootLens sets
+`ap_loader_extraction_dir` to `${java.io.tmpdir}/bootlens-ap-loader` before loading async-profiler
+when the property is not already configured. Operators can override it explicitly, for example:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dap_loader_extraction_dir=/tmp/bootlens-ap-loader"
+```
+
 ---
 
 #### POST /actuator/bootlensProfiler — start a profiling session

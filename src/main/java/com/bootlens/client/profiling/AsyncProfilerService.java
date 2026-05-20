@@ -45,6 +45,8 @@ public class AsyncProfilerService {
 
     private static final Logger log = LoggerFactory.getLogger(AsyncProfilerService.class);
     private static final Pattern COMMAND_TOKEN = Pattern.compile("[A-Za-z0-9._:-]+");
+    static final String AP_LOADER_EXTRACTION_DIR_PROPERTY = "ap_loader_extraction_dir";
+    private static final String DEFAULT_AP_LOADER_EXTRACTION_DIR = "bootlens-ap-loader";
 
     private final AsyncProfilerProperties properties;
     private final ScheduledExecutorService scheduler;
@@ -70,11 +72,13 @@ public class AsyncProfilerService {
         boolean available = false;
         String loadError = null;
         AsyncProfiler loadedProfiler = null;
+        Path extractionDir = configureApLoaderExtractionDirectory();
         try {
             AsyncProfiler profiler = AsyncProfilerLoader.load();
             loadedProfiler = profiler;
             available = true;
-            log.info("async-profiler loaded, version: {}", profiler.getVersion());
+            log.info("async-profiler loaded, version: {}, extractionDir={}",
+                profiler.getVersion(), extractionDir != null ? extractionDir : "(custom or unavailable)");
         }
         catch (UnsatisfiedLinkError | Exception ex) {
             loadError = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
@@ -546,6 +550,32 @@ public class AsyncProfilerService {
             return second.trim();
         }
         return null;
+    }
+
+    static @Nullable Path configureApLoaderExtractionDirectory() {
+        String configured = System.getProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY);
+        if (configured != null && !configured.isBlank()) {
+            return Paths.get(configured).toAbsolutePath().normalize();
+        }
+
+        String tmpDir = System.getProperty("java.io.tmpdir");
+        if (tmpDir == null || tmpDir.isBlank()) {
+            return null;
+        }
+
+        Path extractionDir = Paths.get(tmpDir, DEFAULT_AP_LOADER_EXTRACTION_DIR)
+            .toAbsolutePath()
+            .normalize();
+        try {
+            Files.createDirectories(extractionDir);
+            System.setProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY, extractionDir.toString());
+            return extractionDir;
+        }
+        catch (IOException | RuntimeException ex) {
+            log.debug("Could not prepare async-profiler extraction directory {}: {}",
+                extractionDir, ex.getMessage());
+            return null;
+        }
     }
 
     // -------------------------------------------------------------------------

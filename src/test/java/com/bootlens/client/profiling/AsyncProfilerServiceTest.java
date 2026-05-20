@@ -43,6 +43,15 @@ class AsyncProfilerServiceTest {
         assumeThat(service.status().profilerAvailable()).isTrue();
     }
 
+    private static void restoreSystemProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        }
+        else {
+            System.setProperty(key, value);
+        }
+    }
+
     // --- Status when profiler is unavailable (e.g. Windows CI) ---
 
     @Test
@@ -318,6 +327,41 @@ class AsyncProfilerServiceTest {
             .contains("unsupported characters");
         assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "1ms output=html"))
             .contains("unsupported characters");
+    }
+
+    @Test
+    void apLoaderExtractionDirectoryDefaultsToTmpWhenUnset() {
+        String original = System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
+        System.clearProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
+        try {
+            Path extractionDir = AsyncProfilerService.configureApLoaderExtractionDirectory();
+
+            assertThat(extractionDir).isNotNull();
+            assertThat(Files.isDirectory(extractionDir)).isTrue();
+            assertThat(extractionDir.getFileName().toString()).isEqualTo("bootlens-ap-loader");
+            assertThat(System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY))
+                .isEqualTo(extractionDir.toString());
+        }
+        finally {
+            restoreSystemProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, original);
+        }
+    }
+
+    @Test
+    void apLoaderExtractionDirectoryHonorsExplicitSystemProperty() {
+        String original = System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
+        Path explicit = tempDir.resolve("custom-ap-loader");
+        System.setProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, explicit.toString());
+        try {
+            Path extractionDir = AsyncProfilerService.configureApLoaderExtractionDirectory();
+
+            assertThat(extractionDir).isEqualTo(explicit.toAbsolutePath().normalize());
+            assertThat(System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY))
+                .isEqualTo(explicit.toString());
+        }
+        finally {
+            restoreSystemProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, original);
+        }
     }
 
     @Test
