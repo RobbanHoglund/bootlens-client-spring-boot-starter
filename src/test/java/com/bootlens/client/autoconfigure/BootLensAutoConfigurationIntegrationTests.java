@@ -2,6 +2,7 @@ package com.bootlens.client.autoconfigure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bootlens.client.diagnostics.BootLensClientInfoAutoConfiguration;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsAutoConfiguration;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsEndpoint;
 import com.bootlens.client.diagnostics.BootLensDiagnosticsWebExtension;
@@ -23,6 +24,7 @@ class BootLensAutoConfigurationIntegrationTests {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withConfiguration(
             AutoConfigurations.of(
+                BootLensClientInfoAutoConfiguration.class,
                 BootLensDiagnosticsAutoConfiguration.class,
                 BootLensRegistrationAutoConfiguration.class
             )
@@ -33,6 +35,7 @@ class BootLensAutoConfigurationIntegrationTests {
             AutoConfigurations.of(
                 HealthContributorAutoConfiguration.class,
                 HealthContributorRegistryAutoConfiguration.class,
+                BootLensClientInfoAutoConfiguration.class,
                 BootLensDiagnosticsAutoConfiguration.class
             )
         );
@@ -40,6 +43,7 @@ class BootLensAutoConfigurationIntegrationTests {
     private final WebApplicationContextRunner webContextRunner = new WebApplicationContextRunner()
         .withConfiguration(
             AutoConfigurations.of(
+                BootLensClientInfoAutoConfiguration.class,
                 BootLensDiagnosticsAutoConfiguration.class,
                 BootLensRegistrationAutoConfiguration.class
             )
@@ -48,6 +52,8 @@ class BootLensAutoConfigurationIntegrationTests {
     @Test
     void diagnosticsBeansAreRegisteredByDefault() {
         contextRunner.run(context -> {
+            assertThat(context).hasBean("bootLensClientVersionInfoContributor");
+            assertThat(context).hasBean("bootLensPortInfoContributor");
             assertThat(context).hasBean("secretSanitizer");
             assertThat(context).hasBean("heapDumpManager");
             assertThat(context).hasBean("vmDiagnostics");

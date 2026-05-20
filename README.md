@@ -452,6 +452,32 @@ Prefix:
 | `actuator-username` | *(empty)* | Callback credential when actuator endpoints are protected |
 | `actuator-password` | *(empty)* | Callback credential when actuator endpoints are protected |
 
+The resolved application and management ports are also exposed at `/actuator/info`
+under the `bootlensPorts` key:
+
+```json
+{
+  "bootlensPorts": {
+    "application": {
+      "port": "9091",
+      "localPort": "9091",
+      "configuredPort": "0"
+    },
+    "management": {
+      "enabled": true,
+      "port": "9191",
+      "localPort": "9191",
+      "configuredPort": "0",
+      "sameAsApplication": false,
+      "basePath": "/actuator"
+    }
+  }
+}
+```
+
+`localPort` is present when Spring has published the actual runtime port, which is
+especially useful for `server.port=0` or `management.server.port=0`.
+
 ### Deployment metadata
 
 | Property | Default | Notes |
