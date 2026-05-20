@@ -153,11 +153,6 @@ public class AsyncProfilerService {
         if (invalidIntervalMessage != null) {
             return StartResult.failed(invalidIntervalMessage);
         }
-        String invalidMemoryLimitMessage = validateCommandToken("memory limit", ProfilerConstants.MEMORY_LIMIT);
-        if (invalidMemoryLimitMessage != null) {
-            return StartResult.failed(invalidMemoryLimitMessage);
-        }
-
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Path outputDir = ensureOutputDir();
         String fileName = "bootlens-" + sessionId + resolvedFormat.getFileExtension();
@@ -167,7 +162,7 @@ public class AsyncProfilerService {
         try {
             command = buildStartCommand(resolvedEvent, canonicalEvent, outputFile, resolvedFormat,
                 resolvedInterval, resolvedDuration, properties.getJstackdepth(), properties.isThreads(),
-                Boolean.TRUE.equals(inverted), ProfilerConstants.MEMORY_LIMIT);
+                Boolean.TRUE.equals(inverted));
         }
         catch (IllegalArgumentException ex) {
             return StartResult.failed(ex.getMessage());
@@ -460,8 +455,7 @@ public class AsyncProfilerService {
         Duration duration,
         int jstackdepth,
         boolean threads,
-        boolean inverted,
-        String memoryLimit
+        boolean inverted
     ) {
         String absPath = outputFile.toAbsolutePath().normalize().toString();
         if (absPath.contains(",")) {
@@ -480,7 +474,6 @@ public class AsyncProfilerService {
         cmd.append(",").append(format.getCommandValue());
         cmd.append(",file=").append(absPath);
         cmd.append(",timeout=").append(duration.toSeconds());
-        cmd.append(",memlimit=").append(memoryLimit);
 
         if (interval != null && !interval.isBlank()) {
             appendIntervalOption(cmd, event, interval);

@@ -34,9 +34,6 @@ final class ProfilerConstants {
     /** Native memory profiling: sample after every 1 KB of allocation on average. */
     static final String NATIVEMEM_THRESHOLD = "1k";
 
-    /** Limit native async-profiler call trace storage instead of leaving it unlimited. */
-    static final String MEMORY_LIMIT = "128m";
-
     // -------------------------------------------------------------------------
     // Safety limits
     // -------------------------------------------------------------------------

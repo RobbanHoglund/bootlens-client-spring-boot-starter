@@ -1292,8 +1292,6 @@ nanoseconds for time events and bytes for size events.
 
 When omitted, the per-event defaults from the table above are used. Smaller intervals increase
 resolution and overhead; larger intervals reduce overhead and coarsen the profile.
-BootLens also adds async-profiler's `memlimit=128m` guard to each session so call trace storage
-cannot grow without a fixed cap during high-cardinality allocation or native-memory profiling.
 
 ### Output formats
 
@@ -1554,8 +1552,7 @@ curl -X POST http://localhost:8080/actuator/bootlensProfiler \
 **Investigate allocation pressure or GC pauses**
 
 Start an `alloc` session. The resulting flamegraph shows which call paths allocate the most heap.
-Increase the interval to reduce overhead in very allocation-heavy applications. BootLens applies
-`memlimit=128m` to prevent async-profiler call trace storage from growing without a fixed cap.
+Increase the interval to reduce overhead in very allocation-heavy applications.
 
 ```bash
 curl -X POST http://localhost:8080/actuator/bootlensProfiler \

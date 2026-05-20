@@ -36,6 +36,13 @@ class AsyncProfilerServiceTest {
         service.shutdown();
     }
 
+    private void assumeNativeProfilerExerciseAllowed() {
+        assumeThat(Boolean.getBoolean("bootlens.test.native-profiler"))
+            .as("Native async-profiler execution is opt-in because CI runners often restrict perf events")
+            .isTrue();
+        assumeThat(service.status().profilerAvailable()).isTrue();
+    }
+
     // --- Status when profiler is unavailable (e.g. Windows CI) ---
 
     @Test
@@ -70,7 +77,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void statusIsIdleBeforeAnySession() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.ProfilerStatus status = service.status();
         assertThat(status.state()).isEqualTo("IDLE");
@@ -79,7 +86,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void startReturnsStartedWithSessionId() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
@@ -94,7 +101,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void statusIsRunningAfterStart() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
 
@@ -106,7 +113,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void stopReturnsStoppedAndOutputFileExists() throws IOException {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult started = service.start(
             "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
@@ -122,7 +129,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void statusIsIdleAfterStop() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
@@ -134,7 +141,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void startReturnsAlreadyRunningWhenSessionIsActive() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
 
@@ -146,7 +153,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void stopReturnsNotRunningWhenNoSessionIsActive() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StopResult result = service.stop();
         assertThat(result.status()).isEqualTo("NOT_RUNNING");
@@ -154,7 +161,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void durationIsClampedToMaxDuration() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         // Request 10 minutes but max is 60 seconds
         AsyncProfilerService.StartResult result = service.start(
@@ -165,7 +172,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void defaultsAreAppliedWhenParametersAreNull() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(null, null, null, null);
         assertThat(result.status()).isEqualTo("STARTED");
@@ -178,7 +185,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void cpuEventUsesIntervalOption() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "5ms");
@@ -189,7 +196,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void cpuDefaultIntervalIsAppliedWhenNoneSpecified() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
@@ -198,7 +205,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void wallDefaultIntervalIsApplied() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "wall", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
@@ -208,7 +215,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void allocDefaultIntervalIsApplied() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "alloc", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
@@ -218,7 +225,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void lockDefaultIntervalIsApplied() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "lock", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
@@ -228,7 +235,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void eventNameIsNormalizedToExternalName() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         // "NATIVE_MEM" should resolve to "nativemem"
         AsyncProfilerService.StartResult result = service.start(
@@ -238,7 +245,7 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
-    void allocStartCommandUsesDefaultThresholdAndMemoryLimit() {
+    void allocStartCommandUsesDefaultThreshold() {
         String command = AsyncProfilerService.buildStartCommand(
             ProfilerEvent.ALLOC,
             ProfilerEvent.ALLOC.externalName(),
@@ -248,19 +255,17 @@ class AsyncProfilerServiceTest {
             Duration.ofSeconds(30),
             0,
             false,
-            false,
-            ProfilerConstants.MEMORY_LIMIT);
+            false);
 
         assertThat(command)
             .contains("event=alloc")
             .contains(",flamegraph,")
             .contains("alloc=1k")
-            .contains("memlimit=128m")
             .doesNotContain("output=");
     }
 
     @Test
-    void nativeMemoryStartCommandUsesDefaultThresholdAndMemoryLimit() {
+    void nativeMemoryStartCommandUsesDefaultThreshold() {
         String command = AsyncProfilerService.buildStartCommand(
             ProfilerEvent.NATIVE_MEM,
             ProfilerEvent.NATIVE_MEM.externalName(),
@@ -270,14 +275,12 @@ class AsyncProfilerServiceTest {
             Duration.ofSeconds(60),
             0,
             false,
-            false,
-            ProfilerConstants.MEMORY_LIMIT);
+            false);
 
         assertThat(command)
             .contains("event=nativemem")
             .contains(",jfr,")
             .contains("nativemem=1k")
-            .contains("memlimit=128m")
             .contains("nofree")
             .doesNotContain("output=");
     }
@@ -293,8 +296,7 @@ class AsyncProfilerServiceTest {
             Duration.ofSeconds(15),
             0,
             false,
-            false,
-            ProfilerConstants.MEMORY_LIMIT);
+            false);
 
         assertThat(command).contains("event=java.util.Properties.getProperty");
     }
@@ -306,7 +308,6 @@ class AsyncProfilerServiceTest {
         assertThat(AsyncProfilerService.validateCommandToken("event", "cpu")).isNull();
         assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "500us")).isNull();
         assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "512k")).isNull();
-        assertThat(AsyncProfilerService.validateCommandToken("memory limit", ProfilerConstants.MEMORY_LIMIT)).isNull();
     }
 
     @Test
@@ -321,7 +322,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void startRejectsUnsafeEventWhenProfilerIsAvailable() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu,file=/tmp/out.html", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
@@ -332,7 +333,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void startRejectsUnsafeIntervalWhenProfilerIsAvailable() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "1ms,threads");
@@ -349,7 +350,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void jfrOutputFileHasJfrExtension() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.StartResult result = service.start(
             "cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.JFR, null);
@@ -361,7 +362,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void versionIsReturnedWhenProfilerIsAvailable() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.VersionResult result = service.getVersion();
         assertThat(result.available()).isTrue();
@@ -379,7 +380,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void samplesIsZeroBeforeSessionStarts() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         AsyncProfilerService.SamplesResult result = service.getSamples();
         assertThat(result.available()).isTrue();
@@ -388,7 +389,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void dumpFlatReturnsTextAfterSession() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
@@ -401,7 +402,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void dumpTracesReturnsTextAfterSession() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
@@ -414,7 +415,7 @@ class AsyncProfilerServiceTest {
 
     @Test
     void dumpCollapsedReturnsTextAfterSession() {
-        assumeThat(service.status().profilerAvailable()).isTrue();
+        assumeNativeProfilerExerciseAllowed();
 
         service.start("cpu", Duration.ofSeconds(30), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
         service.stop();
