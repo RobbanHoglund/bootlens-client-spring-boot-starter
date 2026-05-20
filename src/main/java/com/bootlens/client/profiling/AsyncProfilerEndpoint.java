@@ -135,7 +135,7 @@ public class AsyncProfilerEndpoint {
      *                        (optional — defaults to {@code bootlens.client.profiler.default-format})
      * @param interval        sampling interval — meaning depends on event type:
      *                        cpu/wall/ctimer: time between samples (e.g. {@code "2ms"}, {@code "500us"});
-     *                        alloc/nativemem: allocation size between samples (e.g. {@code "512k"});
+     *                        alloc/nativemem: allocation size between samples (e.g. {@code "1m"});
      *                        lock: lock-wait threshold (e.g. {@code "5ms"}).
      *                        Accepts the same unit suffixes as async-profiler: ns, us, ms, s, k, m, g.
      *                        (optional — defaults to a sensible per-event constant from {@link ProfilerConstants})

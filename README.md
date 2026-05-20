@@ -40,13 +40,11 @@ This repository is published under the Apache License 2.0. See
 ## Requirements
 
 - Java 25
-- Spring Boot 3.x or 4.x
+- Spring Boot 4.x
 - A build that can authenticate to GitHub Packages when consuming the published artifact
 
 This starter is built and tested against the Spring Boot 4.0.6 BOM with a Java 25 toolchain.
-All features work on Spring Boot 3.x except the monitor health indicator, which requires the
-Spring Boot 4.x health package (`org.springframework.boot.health.contributor`) and is silently
-skipped on Spring Boot 3.x.
+Spring Boot 3.x is not supported by the 1.0.x line.
 
 ## Build And Run Locally
 
@@ -1294,6 +1292,8 @@ nanoseconds for time events and bytes for size events.
 
 When omitted, the per-event defaults from the table above are used. Smaller intervals increase
 resolution and overhead; larger intervals reduce overhead and coarsen the profile.
+BootLens also adds async-profiler's `memlimit=128m` guard to each session so call trace storage
+cannot grow without a fixed cap during high-cardinality allocation or native-memory profiling.
 
 ### Output formats
 
@@ -1554,7 +1554,8 @@ curl -X POST http://localhost:8080/actuator/bootlensProfiler \
 **Investigate allocation pressure or GC pauses**
 
 Start an `alloc` session. The resulting flamegraph shows which call paths allocate the most heap.
-Increase the interval to reduce overhead in very allocation-heavy applications.
+Increase the interval to reduce overhead in very allocation-heavy applications. BootLens applies
+`memlimit=128m` to prevent async-profiler call trace storage from growing without a fixed cap.
 
 ```bash
 curl -X POST http://localhost:8080/actuator/bootlensProfiler \
@@ -1694,10 +1695,8 @@ bootlens.client.profiler.enabled=false
 ## Monitor Health Indicator
 
 **Spring Boot version note:** the health indicator requires Spring Boot 4.x
-(`org.springframework.boot.health.contributor.HealthIndicator`). On Spring Boot 3.x the
-auto-configuration is silently skipped — monitors keep running, rate-limited logging keeps
-working, and `/actuator/info` snapshots are still produced. Only the health integration into
-`/actuator/health` is absent.
+(`org.springframework.boot.health.contributor.HealthIndicator`). Spring Boot 3.x is not
+supported by the 1.0.x line.
 
 Prefix:
 

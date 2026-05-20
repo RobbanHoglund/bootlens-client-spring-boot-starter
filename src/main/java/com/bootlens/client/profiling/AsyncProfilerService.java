@@ -11,8 +11,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import one.profiler.AsyncProfiler;
+import one.profiler.AsyncProfilerLoader;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,12 +44,14 @@ import org.springframework.lang.Nullable;
 public class AsyncProfilerService {
 
     private static final Logger log = LoggerFactory.getLogger(AsyncProfilerService.class);
+    private static final Pattern COMMAND_TOKEN = Pattern.compile("[A-Za-z0-9._:-]+");
 
     private final AsyncProfilerProperties properties;
     private final ScheduledExecutorService scheduler;
 
     private final boolean profilerAvailable;
     @Nullable private final String profilerLoadError;
+    @Nullable private final AsyncProfiler profiler;
 
     // Non-null only while a session is active
     @Nullable private ActiveSession activeSession;
@@ -65,8 +69,10 @@ public class AsyncProfilerService {
 
         boolean available = false;
         String loadError = null;
+        AsyncProfiler loadedProfiler = null;
         try {
-            AsyncProfiler profiler = AsyncProfiler.getInstance(); // triggers native lib load
+            AsyncProfiler profiler = AsyncProfilerLoader.load();
+            loadedProfiler = profiler;
             available = true;
             log.info("async-profiler loaded, version: {}", profiler.getVersion());
         }
@@ -76,6 +82,7 @@ public class AsyncProfilerService {
         }
         this.profilerAvailable = available;
         this.profilerLoadError = loadError;
+        this.profiler = loadedProfiler;
     }
 
     // -------------------------------------------------------------------------
@@ -90,7 +97,7 @@ public class AsyncProfilerService {
      *   <li><b>cpu / wall / ctimer</b> — time between samples, e.g. {@code "2ms"} or
      *       {@code "1000000"} (plain numbers are treated as nanoseconds).</li>
      *   <li><b>alloc / nativemem / nativememleak</b> — heap/native allocation size
-     *       between samples, e.g. {@code "512k"} or {@code "1m"}.</li>
+     *       between samples, e.g. {@code "1m"} or {@code "2m"}.</li>
      *   <li><b>lock</b> — minimum lock-wait threshold, e.g. {@code "5ms"}.</li>
      * </ul>
      * Accepts the same unit suffixes as async-profiler: {@code ns}, {@code us},
@@ -127,14 +134,29 @@ public class AsyncProfilerService {
             return StartResult.alreadyRunning(activeSession.sessionId());
         }
 
-        String rawEvent = event != null ? event : properties.getDefaultEvent();
+        String rawEvent = firstNonBlank(event, properties.getDefaultEvent());
+        if (rawEvent == null) {
+            return StartResult.failed("Profiling event must not be blank.");
+        }
         ProfilerEvent resolvedEvent = ProfilerEvent.fromString(rawEvent)
-            .orElse(null); // unknown events pass through as free-form strings (e.g. cache-misses, cycles)
+            .orElse(null); // unknown safe tokens pass through as free-form strings (e.g. cache-misses, cycles)
 
         String canonicalEvent = resolvedEvent != null ? resolvedEvent.externalName() : rawEvent.trim();
+        String invalidEventMessage = validateCommandToken("event", canonicalEvent);
+        if (invalidEventMessage != null) {
+            return StartResult.failed(invalidEventMessage);
+        }
         Duration resolvedDuration = clampDuration(duration != null ? duration : properties.getDefaultDuration());
         AsyncProfilerProperties.OutputFormat resolvedFormat = format != null ? format : properties.getDefaultFormat();
-        String resolvedInterval = interval != null ? interval : defaultIntervalFor(resolvedEvent);
+        String resolvedInterval = firstNonBlank(interval, defaultIntervalFor(resolvedEvent));
+        String invalidIntervalMessage = validateOptionalCommandToken("interval", resolvedInterval);
+        if (invalidIntervalMessage != null) {
+            return StartResult.failed(invalidIntervalMessage);
+        }
+        String invalidMemoryLimitMessage = validateCommandToken("memory limit", ProfilerConstants.MEMORY_LIMIT);
+        if (invalidMemoryLimitMessage != null) {
+            return StartResult.failed(invalidMemoryLimitMessage);
+        }
 
         String sessionId = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Path outputDir = ensureOutputDir();
@@ -145,7 +167,7 @@ public class AsyncProfilerService {
         try {
             command = buildStartCommand(resolvedEvent, canonicalEvent, outputFile, resolvedFormat,
                 resolvedInterval, resolvedDuration, properties.getJstackdepth(), properties.isThreads(),
-                Boolean.TRUE.equals(inverted));
+                Boolean.TRUE.equals(inverted), ProfilerConstants.MEMORY_LIMIT);
         }
         catch (IllegalArgumentException ex) {
             return StartResult.failed(ex.getMessage());
@@ -153,7 +175,7 @@ public class AsyncProfilerService {
 
         log.debug("Starting async-profiler session {}: {}", sessionId, command);
         try {
-            AsyncProfiler.getInstance().execute(command);
+            profiler().execute(command);
         }
         catch (Exception ex) {
             log.warn("Failed to start async-profiler session {}: {}", sessionId, ex.getMessage());
@@ -218,7 +240,7 @@ public class AsyncProfilerService {
         }
         int limit = maxMethods != null ? maxMethods : properties.getDumpFlatMaxMethods();
         try {
-            String data = AsyncProfiler.getInstance().dumpFlat(limit);
+            String data = profiler().dumpFlat(limit);
             return DumpResult.ok("flat", data);
         }
         catch (Exception ex) {
@@ -239,7 +261,7 @@ public class AsyncProfilerService {
         }
         int limit = maxTraces != null ? maxTraces : properties.getDumpTracesMaxTraces();
         try {
-            String data = AsyncProfiler.getInstance().dumpTraces(limit);
+            String data = profiler().dumpTraces(limit);
             return DumpResult.ok("traces", data);
         }
         catch (Exception ex) {
@@ -257,7 +279,7 @@ public class AsyncProfilerService {
             return DumpResult.unavailable(profilerLoadError);
         }
         try {
-            String data = AsyncProfiler.getInstance().execute("collapsed");
+            String data = profiler().execute("collapsed");
             return DumpResult.ok("collapsed", data);
         }
         catch (Exception ex) {
@@ -274,7 +296,7 @@ public class AsyncProfilerService {
             return new SamplesResult(false, -1L, profilerLoadError);
         }
         try {
-            long samples = AsyncProfiler.getInstance().getSamples();
+            long samples = profiler().getSamples();
             return new SamplesResult(true, samples, null);
         }
         catch (Exception ex) {
@@ -290,7 +312,7 @@ public class AsyncProfilerService {
             return new VersionResult(false, null, profilerLoadError);
         }
         try {
-            String version = AsyncProfiler.getInstance().getVersion();
+            String version = profiler().getVersion();
             return new VersionResult(true, version, null);
         }
         catch (Exception ex) {
@@ -352,7 +374,7 @@ public class AsyncProfilerService {
 
         // Manual stop — tell async-profiler to flush and write the output file now.
         try {
-            AsyncProfiler.getInstance().execute("stop");
+            profiler().execute("stop");
             log.info("async-profiler session {} stopped manually — output: {}",
                 session.sessionId(), session.outputFile());
         }
@@ -370,6 +392,16 @@ public class AsyncProfilerService {
             true, null);
         return StopResult.stopped(session.sessionId(), session.outputFile().toString(),
             session.format(), false);
+    }
+
+    private AsyncProfiler profiler() {
+        if (profiler == null) {
+            String message = profilerLoadError != null && !profilerLoadError.isBlank()
+                ? profilerLoadError
+                : "async-profiler is not available.";
+            throw new IllegalStateException(message);
+        }
+        return profiler;
     }
 
     private Duration clampDuration(Duration requested) {
@@ -419,7 +451,7 @@ public class AsyncProfilerService {
      *   <li>unknown/free-form — {@code interval=} (best effort)</li>
      * </ul>
      */
-    private static String buildStartCommand(
+    static String buildStartCommand(
         @Nullable ProfilerEvent event,
         String canonicalEventName,
         Path outputFile,
@@ -428,7 +460,8 @@ public class AsyncProfilerService {
         Duration duration,
         int jstackdepth,
         boolean threads,
-        boolean inverted
+        boolean inverted,
+        String memoryLimit
     ) {
         String absPath = outputFile.toAbsolutePath().normalize().toString();
         if (absPath.contains(",")) {
@@ -444,9 +477,10 @@ public class AsyncProfilerService {
         StringBuilder cmd = new StringBuilder();
         cmd.append("start");
         cmd.append(",event=").append(cmdEvent);
-        cmd.append(",output=").append(format.getCommandValue());
+        cmd.append(",").append(format.getCommandValue());
         cmd.append(",file=").append(absPath);
         cmd.append(",timeout=").append(duration.toSeconds());
+        cmd.append(",memlimit=").append(memoryLimit);
 
         if (interval != null && !interval.isBlank()) {
             appendIntervalOption(cmd, event, interval);
@@ -486,11 +520,39 @@ public class AsyncProfilerService {
             return;
         }
         switch (event) {
-            case CPU, WALL, CTIMER          -> cmd.append(",interval=").append(value);
-            case ALLOC                      -> cmd.append(",alloc=").append(value);
-            case LOCK                       -> cmd.append(",lock=").append(value);
+            case CPU, WALL, CTIMER            -> cmd.append(",interval=").append(value);
+            case ALLOC                        -> cmd.append(",alloc=").append(value);
+            case LOCK                         -> cmd.append(",lock=").append(value);
             case NATIVE_MEM, NATIVE_MEM_LEAK -> cmd.append(",nativemem=").append(value);
         }
+    }
+
+    static String validateOptionalCommandToken(String label, @Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return validateCommandToken(label, value);
+    }
+
+    static String validateCommandToken(String label, String value) {
+        if (value == null || value.isBlank()) {
+            return "Profiling " + label + " must not be blank.";
+        }
+        if (!COMMAND_TOKEN.matcher(value).matches()) {
+            return "Profiling " + label
+                + " contains unsupported characters; use only letters, digits, '.', '_', ':' or '-'.";
+        }
+        return null;
+    }
+
+    private static String firstNonBlank(@Nullable String first, @Nullable String second) {
+        if (first != null && !first.isBlank()) {
+            return first.trim();
+        }
+        if (second != null && !second.isBlank()) {
+            return second.trim();
+        }
+        return null;
     }
 
     // -------------------------------------------------------------------------

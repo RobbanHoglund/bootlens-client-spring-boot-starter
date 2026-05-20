@@ -238,6 +238,110 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
+    void allocStartCommandUsesDefaultThresholdAndMemoryLimit() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.ALLOC,
+            ProfilerEvent.ALLOC.externalName(),
+            tempDir.resolve("alloc.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.ALLOC_THRESHOLD,
+            Duration.ofSeconds(30),
+            0,
+            false,
+            false,
+            ProfilerConstants.MEMORY_LIMIT);
+
+        assertThat(command)
+            .contains("event=alloc")
+            .contains(",flamegraph,")
+            .contains("alloc=1k")
+            .contains("memlimit=128m")
+            .doesNotContain("output=");
+    }
+
+    @Test
+    void nativeMemoryStartCommandUsesDefaultThresholdAndMemoryLimit() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.NATIVE_MEM,
+            ProfilerEvent.NATIVE_MEM.externalName(),
+            tempDir.resolve("native-memory.jfr"),
+            AsyncProfilerProperties.OutputFormat.JFR,
+            ProfilerConstants.NATIVEMEM_THRESHOLD,
+            Duration.ofSeconds(60),
+            0,
+            false,
+            false,
+            ProfilerConstants.MEMORY_LIMIT);
+
+        assertThat(command)
+            .contains("event=nativemem")
+            .contains(",jfr,")
+            .contains("nativemem=1k")
+            .contains("memlimit=128m")
+            .contains("nofree")
+            .doesNotContain("output=");
+    }
+
+    @Test
+    void freeFormEventCommandPreservesCaseSensitiveEventName() {
+        String command = AsyncProfilerService.buildStartCommand(
+            null,
+            "java.util.Properties.getProperty",
+            tempDir.resolve("method.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            null,
+            Duration.ofSeconds(15),
+            0,
+            false,
+            false,
+            ProfilerConstants.MEMORY_LIMIT);
+
+        assertThat(command).contains("event=java.util.Properties.getProperty");
+    }
+
+    @Test
+    void commandTokenValidationAllowsKnownSafeProfilerTokens() {
+        assertThat(AsyncProfilerService.validateCommandToken("event", "cache-misses")).isNull();
+        assertThat(AsyncProfilerService.validateCommandToken("event", "java.util.Properties.getProperty")).isNull();
+        assertThat(AsyncProfilerService.validateCommandToken("event", "cpu")).isNull();
+        assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "500us")).isNull();
+        assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "512k")).isNull();
+        assertThat(AsyncProfilerService.validateCommandToken("memory limit", ProfilerConstants.MEMORY_LIMIT)).isNull();
+    }
+
+    @Test
+    void commandTokenValidationRejectsInjectedCommandOptions() {
+        assertThat(AsyncProfilerService.validateCommandToken("event", "cpu,file=/tmp/out.html"))
+            .contains("unsupported characters");
+        assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "1ms,threads"))
+            .contains("unsupported characters");
+        assertThat(AsyncProfilerService.validateOptionalCommandToken("interval", "1ms output=html"))
+            .contains("unsupported characters");
+    }
+
+    @Test
+    void startRejectsUnsafeEventWhenProfilerIsAvailable() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.StartResult result = service.start(
+            "cpu,file=/tmp/out.html", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, null);
+
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.message()).contains("unsupported characters");
+    }
+
+    @Test
+    void startRejectsUnsafeIntervalWhenProfilerIsAvailable() {
+        assumeThat(service.status().profilerAvailable()).isTrue();
+
+        AsyncProfilerService.StartResult result = service.start(
+            "cpu", Duration.ofSeconds(5), AsyncProfilerProperties.OutputFormat.FLAMEGRAPH, "1ms,threads");
+
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.message()).contains("unsupported characters");
+    }
+
+    @Test
     void resolveOutputFileRejectsDotDotTraversal() {
         org.junit.jupiter.api.Assertions.assertThrows(SecurityException.class,
             () -> service.resolveOutputFile("../secret.txt"));
