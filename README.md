@@ -1355,13 +1355,31 @@ On Windows or when the native library fails to load:
 ```
 
 If the error says async-profiler could not load from an extraction directory, the container is
-usually mounting that directory without execute permission. BootLens sets
-`ap_loader_extraction_dir` to `${java.io.tmpdir}/bootlens-ap-loader` before loading async-profiler
-when the property is not already configured. Operators can override it explicitly, for example:
+usually mounting that directory without execute permission. BootLens first uses async-profiler's
+standard in-process loader (`AsyncProfiler.getInstance()`), then falls back to ap-loader extraction
+only if the standard loader fails. The fallback tries several extraction directories before giving
+up: an explicit `ap_loader_extraction_dir`, the application working directory, `/app`,
+`${java.io.tmpdir}`, and finally a user-cache directory. Operators can override the first candidate
+explicitly, for example:
 
 ```bash
 JAVA_TOOL_OPTIONS="-Dap_loader_extraction_dir=/tmp/bootlens-ap-loader"
 ```
+
+If all candidates fail, the runtime is blocking native library loading or the extracted native
+library is incompatible with the container libc. The bundled ap-loader version tracks
+async-profiler 4.4 and supports both glibc and musl, but a specific JVM/container/native
+profiler combination can still fail in native code. If a specific event crashes the JVM, inspect
+the generated `hs_err_pid*.log`, try a lower sampling rate, or run that profiling workload on a
+glibc-based Java image.
+
+If the root cause mentions `libstdc++.so.6`, install the C++ runtime in the image:
+
+```dockerfile
+RUN apk add --no-cache libstdc++
+```
+
+For Debian or Ubuntu based images use `apt-get install -y libstdc++6`.
 
 ---
 

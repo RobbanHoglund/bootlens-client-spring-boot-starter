@@ -124,4 +124,5 @@ class AsyncProfilerAutoConfigurationTest {
                 assertThat(props.isThreads()).isTrue();
             });
     }
+
 }

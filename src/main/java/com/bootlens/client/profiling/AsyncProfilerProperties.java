@@ -190,4 +190,5 @@ public class AsyncProfilerProperties {
     public void setDumpTracesMaxTraces(int dumpTracesMaxTraces) {
         this.dumpTracesMaxTraces = dumpTracesMaxTraces;
     }
+
 }

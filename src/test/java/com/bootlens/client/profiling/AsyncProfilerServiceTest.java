@@ -330,17 +330,16 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
-    void apLoaderExtractionDirectoryDefaultsToTmpWhenUnset() {
+    void apLoaderExtractionDirectoryCandidatesPreferApplicationDirectoryBeforeTmpWhenUnset() {
         String original = System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
         System.clearProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
         try {
-            Path extractionDir = AsyncProfilerService.configureApLoaderExtractionDirectory();
+            var candidates = AsyncProfilerService.apLoaderExtractionDirectoryCandidates();
 
-            assertThat(extractionDir).isNotNull();
-            assertThat(Files.isDirectory(extractionDir)).isTrue();
-            assertThat(extractionDir.getFileName().toString()).isEqualTo("bootlens-ap-loader");
-            assertThat(System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY))
-                .isEqualTo(extractionDir.toString());
+            assertThat(candidates).isNotEmpty();
+            assertThat(candidates.get(0).getFileName().toString()).isEqualTo(".bootlens-ap-loader");
+            assertThat(candidates)
+                .anySatisfy(path -> assertThat(path.getFileName().toString()).isEqualTo("bootlens-ap-loader"));
         }
         finally {
             restoreSystemProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, original);
@@ -348,20 +347,34 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
-    void apLoaderExtractionDirectoryHonorsExplicitSystemProperty() {
+    void apLoaderExtractionDirectoryCandidatesTryExplicitSystemPropertyFirst() {
         String original = System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY);
         Path explicit = tempDir.resolve("custom-ap-loader");
         System.setProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, explicit.toString());
         try {
-            Path extractionDir = AsyncProfilerService.configureApLoaderExtractionDirectory();
+            var candidates = AsyncProfilerService.apLoaderExtractionDirectoryCandidates();
 
-            assertThat(extractionDir).isEqualTo(explicit.toAbsolutePath().normalize());
-            assertThat(System.getProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY))
-                .isEqualTo(explicit.toString());
+            assertThat(candidates.get(0)).isEqualTo(explicit.toAbsolutePath().normalize());
+            assertThat(candidates).doesNotHaveDuplicates();
         }
         finally {
             restoreSystemProperty(AsyncProfilerService.AP_LOADER_EXTRACTION_DIR_PROPERTY, original);
         }
+    }
+
+    @Test
+    void libcDetectionReturnsKnownValue() {
+        assertThat(AsyncProfilerService.detectLibc()).isIn("glibc", "musl", "unknown");
+    }
+
+    @Test
+    void runtimeHintExplainsMissingCppRuntime() {
+        String hint = AsyncProfilerService.runtimeHint(
+            "UnsatisfiedLinkError: libasyncProfiler.so: Error loading shared library libstdc++.so.6");
+
+        assertThat(hint)
+            .contains("libstdc++.so.6 is missing")
+            .contains("apk add --no-cache libstdc++");
     }
 
     @Test

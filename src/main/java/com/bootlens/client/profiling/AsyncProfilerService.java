@@ -6,6 +6,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -47,6 +51,7 @@ public class AsyncProfilerService {
     private static final Pattern COMMAND_TOKEN = Pattern.compile("[A-Za-z0-9._:-]+");
     static final String AP_LOADER_EXTRACTION_DIR_PROPERTY = "ap_loader_extraction_dir";
     private static final String DEFAULT_AP_LOADER_EXTRACTION_DIR = "bootlens-ap-loader";
+    private static final String DEFAULT_AP_LOADER_APP_DIR = ".bootlens-ap-loader";
 
     private final AsyncProfilerProperties properties;
     private final ScheduledExecutorService scheduler;
@@ -72,17 +77,16 @@ public class AsyncProfilerService {
         boolean available = false;
         String loadError = null;
         AsyncProfiler loadedProfiler = null;
-        Path extractionDir = configureApLoaderExtractionDirectory();
         try {
-            AsyncProfiler profiler = AsyncProfilerLoader.load();
-            loadedProfiler = profiler;
+            LoadedProfiler loaded = loadAsyncProfiler();
+            loadedProfiler = loaded.profiler();
             available = true;
-            log.info("async-profiler loaded, version: {}, extractionDir={}",
-                profiler.getVersion(), extractionDir != null ? extractionDir : "(custom or unavailable)");
+            log.info("async-profiler loaded, version: {}, source={}",
+                loadedProfiler.getVersion(), loaded.source());
         }
         catch (UnsatisfiedLinkError | Exception ex) {
             loadError = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
-            log.debug("async-profiler is not available on this host: {}", loadError);
+            log.warn("async-profiler is not available on this host: {}", loadError);
         }
         this.profilerAvailable = available;
         this.profilerLoadError = loadError;
@@ -552,35 +556,141 @@ public class AsyncProfilerService {
         return null;
     }
 
-    static @Nullable Path configureApLoaderExtractionDirectory() {
+    private static LoadedProfiler loadAsyncProfiler() throws IOException {
+        List<String> failures = new ArrayList<>();
+        try {
+            return new LoadedProfiler(AsyncProfiler.getInstance(), "AsyncProfiler.getInstance()");
+        }
+        catch (RuntimeException | UnsatisfiedLinkError ex) {
+            String message = describeThrowable(ex);
+            failures.add("AsyncProfiler.getInstance() -> " + message);
+            log.warn("Could not load async-profiler via AsyncProfiler.getInstance(): {}", message);
+        }
+
+        for (Path candidate : apLoaderExtractionDirectoryCandidates()) {
+            try {
+                prepareApLoaderExtractionDirectory(candidate);
+                resetApLoader();
+                AsyncProfilerLoader.setExtractionDirectory(candidate);
+                System.setProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY, candidate.toString());
+                return new LoadedProfiler(AsyncProfilerLoader.load(), "AsyncProfilerLoader.load(" + candidate + ")");
+            }
+            catch (IOException | RuntimeException | UnsatisfiedLinkError ex) {
+                String message = describeThrowable(ex);
+                failures.add(candidate + " -> " + message);
+                log.warn("Could not load async-profiler from extractionDir={}: {}", candidate, message);
+                resetApLoaderQuietly();
+            }
+        }
+
+        throw new IllegalStateException(
+            "Could not load async-profiler from any candidate extraction directory. Tried: "
+                + String.join("; ", failures)
+                + runtimeHint(String.join("; ", failures))
+                + ". Configure -D" + AP_LOADER_EXTRACTION_DIR_PROPERTY
+                + " to a writable directory on a filesystem mounted with exec.");
+    }
+
+    static List<Path> apLoaderExtractionDirectoryCandidates() {
+        Set<Path> candidates = new LinkedHashSet<>();
+
         String configured = System.getProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY);
         if (configured != null && !configured.isBlank()) {
-            return Paths.get(configured).toAbsolutePath().normalize();
+            candidates.add(Paths.get(configured));
         }
 
-        String tmpDir = System.getProperty("java.io.tmpdir");
-        if (tmpDir == null || tmpDir.isBlank()) {
-            return null;
-        }
+        addCandidate(candidates, System.getProperty("user.dir"), DEFAULT_AP_LOADER_APP_DIR);
+        addCandidate(candidates, "/app", DEFAULT_AP_LOADER_APP_DIR);
+        addCandidate(candidates, System.getProperty("java.io.tmpdir"), DEFAULT_AP_LOADER_EXTRACTION_DIR);
+        addCandidate(candidates, System.getProperty("user.home"), ".cache", DEFAULT_AP_LOADER_EXTRACTION_DIR);
 
-        Path extractionDir = Paths.get(tmpDir, DEFAULT_AP_LOADER_EXTRACTION_DIR)
-            .toAbsolutePath()
-            .normalize();
+        return candidates.stream()
+            .map(path -> path.toAbsolutePath().normalize())
+            .toList();
+    }
+
+    private static void addCandidate(Set<Path> candidates, @Nullable String first, String... more) {
+        if (first == null || first.isBlank()) {
+            return;
+        }
+        candidates.add(Paths.get(first, more));
+    }
+
+    private static void prepareApLoaderExtractionDirectory(Path extractionDir) throws IOException {
+        Files.createDirectories(extractionDir);
+        if (!Files.isDirectory(extractionDir)) {
+            throw new IOException("Path is not a directory");
+        }
+        if (!Files.isWritable(extractionDir)) {
+            throw new IOException("Directory is not writable");
+        }
+    }
+
+    private static void resetApLoader() throws IOException {
+        AsyncProfilerLoader.deleteExtractionDirectory();
+        System.clearProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY);
+    }
+
+    private static void resetApLoaderQuietly() {
         try {
-            Files.createDirectories(extractionDir);
-            System.setProperty(AP_LOADER_EXTRACTION_DIR_PROPERTY, extractionDir.toString());
-            return extractionDir;
+            resetApLoader();
         }
         catch (IOException | RuntimeException ex) {
-            log.debug("Could not prepare async-profiler extraction directory {}: {}",
-                extractionDir, ex.getMessage());
-            return null;
+            log.debug("Could not reset async-profiler loader state: {}", ex.getMessage());
         }
+    }
+
+    private static String describeThrowable(Throwable throwable) {
+        StringBuilder message = new StringBuilder(primaryMessage(throwable));
+        Throwable cause = throwable.getCause();
+        while (cause != null) {
+            message.append(" | caused by: ").append(primaryMessage(cause));
+            cause = cause.getCause();
+        }
+        return message.toString();
+    }
+
+    private static String primaryMessage(Throwable throwable) {
+        String message = throwable.getMessage();
+        return throwable.getClass().getSimpleName()
+            + (message != null && !message.isBlank() ? ": " + message : "");
+    }
+
+    static String runtimeHint(String failureText) {
+        if (failureText.contains("libstdc++.so.6")) {
+            return ". Runtime hint: libstdc++.so.6 is missing. Install the C++ runtime in the image "
+                + "(Alpine: apk add --no-cache libstdc++; Debian/Ubuntu: apt-get install -y libstdc++6) "
+                + "or use a glibc-based Java image that already includes it.";
+        }
+        String libc = detectLibc();
+        if ("musl".equals(libc)) {
+            return ". Runtime hint: musl/Alpine detected; if the root cause mentions missing glibc loader "
+                + "or incompatible native code, run the app on a glibc-based image for profiling.";
+        }
+        if ("glibc".equals(libc)) {
+            return ". Runtime hint: glibc detected; if the root cause mentions failed to map segment, "
+                + "the chosen filesystem is likely mounted noexec.";
+        }
+        return "";
+    }
+
+    static String detectLibc() {
+        if (Files.exists(Path.of("/lib/ld-musl-x86_64.so.1"))
+            || Files.exists(Path.of("/lib/libc.musl-x86_64.so.1"))) {
+            return "musl";
+        }
+        if (Files.exists(Path.of("/lib64/ld-linux-x86-64.so.2"))
+            || Files.exists(Path.of("/lib/x86_64-linux-gnu/libc.so.6"))) {
+            return "glibc";
+        }
+        return "unknown";
     }
 
     // -------------------------------------------------------------------------
     // Internal state records
     // -------------------------------------------------------------------------
+
+    private record LoadedProfiler(AsyncProfiler profiler, String source) {}
 
     private record ActiveSession(
         String sessionId,
