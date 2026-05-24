@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "thread.deadlock")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.thread-deadlock")
 public class ThreadDeadlockProperties {
 
     private boolean enabled = true;

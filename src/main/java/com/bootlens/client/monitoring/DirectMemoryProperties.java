@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "direct.memory")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.direct-memory")
 public class DirectMemoryProperties {
 
     private boolean enabled = true;

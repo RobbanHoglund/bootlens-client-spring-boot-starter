@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(GcPressureProperties.class)
-@ConditionalOnProperty(prefix = "gc.pressure", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.gc-pressure", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class GcPressureAutoConfiguration {
 
     @Bean

@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(LogErrorRateProperties.class)
-@ConditionalOnProperty(prefix = "log.errors", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.log-errors", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnClass(name = "ch.qos.logback.classic.Logger")
 public class LogErrorRateAutoConfiguration {
 

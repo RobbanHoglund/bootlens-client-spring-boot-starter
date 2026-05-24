@@ -1,2 +1,3 @@
-org.springframework.boot.env.EnvironmentPostProcessor=\
-  com.bootlens.client.registration.RailwayRegistrationEnvironmentPostProcessor
+org.springframework.boot.EnvironmentPostProcessor=\
+  com.bootlens.client.registration.RailwayRegistrationEnvironmentPostProcessor,\
+  com.bootlens.client.monitoring.MonitoringPropertiesEnvironmentPostProcessor

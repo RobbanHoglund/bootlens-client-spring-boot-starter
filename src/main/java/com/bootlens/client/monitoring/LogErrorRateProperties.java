@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "log.errors")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.log-errors")
 public class LogErrorRateProperties {
 
     private boolean enabled = true;

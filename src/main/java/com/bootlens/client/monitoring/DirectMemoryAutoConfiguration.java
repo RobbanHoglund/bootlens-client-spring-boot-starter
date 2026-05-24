@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(DirectMemoryProperties.class)
-@ConditionalOnProperty(prefix = "direct.memory", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.direct-memory", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class DirectMemoryAutoConfiguration {
 
     @Bean

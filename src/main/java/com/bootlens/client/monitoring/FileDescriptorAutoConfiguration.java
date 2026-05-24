@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(FileDescriptorProperties.class)
-@ConditionalOnProperty(prefix = "file.descriptors", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.file-descriptors", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class FileDescriptorAutoConfiguration {
 
     @Bean

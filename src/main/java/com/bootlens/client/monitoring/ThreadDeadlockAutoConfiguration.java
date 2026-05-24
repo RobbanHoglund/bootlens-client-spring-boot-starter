@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(ThreadDeadlockProperties.class)
-@ConditionalOnProperty(prefix = "thread.deadlock", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.thread-deadlock", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class ThreadDeadlockAutoConfiguration {
 
     @Bean

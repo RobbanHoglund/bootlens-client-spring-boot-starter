@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "gc.pressure")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.gc-pressure")
 public class GcPressureProperties {
 
     private boolean enabled = true;

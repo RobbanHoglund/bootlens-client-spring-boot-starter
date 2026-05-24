@@ -709,9 +709,15 @@ other platforms), the post-processor does nothing and the standard defaults appl
 
 ## Memory Pressure Properties
 
+Monitoring properties use the `bootlens.client.monitoring.*` namespace. The
+legacy prefixes `memory.pressure`, `file.descriptors`, `gc.pressure`,
+`direct.memory`, `thread.deadlock`, `log.errors`, and `metaspace` remain
+supported as aliases for 1.x compatibility, but new configuration should use
+the BootLens namespace.
+
 Prefix:
 
-`memory.pressure`
+`bootlens.client.monitoring.memory-pressure`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -768,24 +774,24 @@ The monitor does not affect the health endpoint status.
 Minimal example:
 
 ```properties
-memory.pressure.enabled=true
-memory.pressure.warning-threshold-percent=75
-memory.pressure.critical-threshold-percent=85
-memory.pressure.emergency-threshold-percent=92
-memory.pressure.check-interval=60s
+bootlens.client.monitoring.memory-pressure.enabled=true
+bootlens.client.monitoring.memory-pressure.warning-threshold-percent=75
+bootlens.client.monitoring.memory-pressure.critical-threshold-percent=85
+bootlens.client.monitoring.memory-pressure.emergency-threshold-percent=92
+bootlens.client.monitoring.memory-pressure.check-interval=60s
 ```
 
 To disable:
 
 ```properties
-memory.pressure.enabled=false
+bootlens.client.monitoring.memory-pressure.enabled=false
 ```
 
 ## File Descriptor Properties
 
 Prefix:
 
-`file.descriptors`
+`bootlens.client.monitoring.file-descriptors`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -855,14 +861,14 @@ On Windows or other unsupported platforms:
 To disable:
 
 ```properties
-file.descriptors.enabled=false
+bootlens.client.monitoring.file-descriptors.enabled=false
 ```
 
 ## GC Pressure Properties
 
 Prefix:
 
-`gc.pressure`
+`bootlens.client.monitoring.gc-pressure`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -917,14 +923,14 @@ The latest snapshot is available at `/actuator/info` under the `gcPressure` key:
 To disable:
 
 ```properties
-gc.pressure.enabled=false
+bootlens.client.monitoring.gc-pressure.enabled=false
 ```
 
 ## Direct Memory Properties
 
 Prefix:
 
-`direct.memory`
+`bootlens.client.monitoring.direct-memory`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -995,14 +1001,14 @@ When the JVM limit cannot be resolved:
 To disable:
 
 ```properties
-direct.memory.enabled=false
+bootlens.client.monitoring.direct-memory.enabled=false
 ```
 
 ## Thread Deadlock Properties
 
 Prefix:
 
-`thread.deadlock`
+`bootlens.client.monitoring.thread-deadlock`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -1068,14 +1074,14 @@ When a deadlock is active:
 To disable:
 
 ```properties
-thread.deadlock.enabled=false
+bootlens.client.monitoring.thread-deadlock.enabled=false
 ```
 
 ## Log Error Rate Properties
 
 Prefix:
 
-`log.errors`
+`bootlens.client.monitoring.log-errors`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -1130,14 +1136,14 @@ The latest snapshot is available at `/actuator/info` under the `logErrors` key:
 To disable:
 
 ```properties
-log.errors.enabled=false
+bootlens.client.monitoring.log-errors.enabled=false
 ```
 
 ## Metaspace Properties
 
 Prefix:
 
-`metaspace`
+`bootlens.client.monitoring.metaspace`
 
 | Property | Default | Notes |
 |---|---|---|
@@ -1215,15 +1221,15 @@ To activate threshold alerts, set the JVM flag and tune if needed:
 # -XX:MaxMetaspaceSize=512m
 
 # To adjust thresholds:
-metaspace.warning-threshold-percent=70
-metaspace.critical-threshold-percent=85
-metaspace.emergency-threshold-percent=95
+bootlens.client.monitoring.metaspace.warning-threshold-percent=70
+bootlens.client.monitoring.metaspace.critical-threshold-percent=85
+bootlens.client.monitoring.metaspace.emergency-threshold-percent=95
 ```
 
 To disable:
 
 ```properties
-metaspace.enabled=false
+bootlens.client.monitoring.metaspace.enabled=false
 ```
 
 ## Async Profiler
@@ -1892,7 +1898,7 @@ management.endpoint.health.show-details=when-authorized
 
 ### Disabling individual monitors vs. the health indicator
 
-Disabling a monitor (`memory.pressure.enabled=false`) removes it from health entirely — its
+Disabling a monitor (`bootlens.client.monitoring.memory-pressure.enabled=false`) removes it from health entirely — its
 level source is not registered and it contributes nothing to the aggregate status.
 
 Disabling the health indicator (`bootlens.client.health.enabled=false`) stops all monitor

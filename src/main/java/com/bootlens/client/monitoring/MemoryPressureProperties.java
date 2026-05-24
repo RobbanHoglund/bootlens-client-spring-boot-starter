@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "memory.pressure")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.memory-pressure")
 public class MemoryPressureProperties {
 
     private boolean enabled = true;

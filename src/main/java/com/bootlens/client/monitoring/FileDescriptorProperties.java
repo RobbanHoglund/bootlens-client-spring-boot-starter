@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "file.descriptors")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.file-descriptors")
 public class FileDescriptorProperties {
 
     private boolean enabled = true;

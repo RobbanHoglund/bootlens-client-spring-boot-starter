@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(MemoryPressureProperties.class)
-@ConditionalOnProperty(prefix = "memory.pressure", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.memory-pressure", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class MemoryPressureAutoConfiguration {
 
     @Bean

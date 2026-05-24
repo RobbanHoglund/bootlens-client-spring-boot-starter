@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "metaspace")
+@ConfigurationProperties(prefix = "bootlens.client.monitoring.metaspace")
 public class MetaspaceProperties {
 
     private boolean enabled = true;

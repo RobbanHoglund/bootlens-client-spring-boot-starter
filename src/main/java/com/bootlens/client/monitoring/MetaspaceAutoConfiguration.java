@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(MetaspaceProperties.class)
-@ConditionalOnProperty(prefix = "metaspace", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.metaspace", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class MetaspaceAutoConfiguration {
 
     @Bean
