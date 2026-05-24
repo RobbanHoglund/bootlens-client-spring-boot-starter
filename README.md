@@ -1710,6 +1710,42 @@ actuator endpoints: restrict the actuator port to an internal network interface,
 authentication via Spring Security. Profiling output contains full stack traces, method names,
 and call paths, which can reveal application internals.
 
+### Troubleshooting
+
+**`UNAVAILABLE` on Linux — native library cannot extract**
+
+The profiler needs to extract and execute a native `.so` from the JAR. If the JVM temp directory
+is on a filesystem mounted with `noexec` (common in some container setups), extraction fails with
+a link error. Set the `-Dap_loader_extraction_dir` system property to a directory on an `exec`-mounted
+filesystem to override the extraction target:
+
+```bash
+java -Dap_loader_extraction_dir=/var/lib/myapp/profiler -jar myapp.jar
+```
+
+The starter tries the following directories in order:
+1. `-Dap_loader_extraction_dir` (if set)
+2. `{user.dir}/.bootlens-ap-loader` (application working directory)
+3. `/app/.bootlens-ap-loader` (common container app root)
+4. `{java.io.tmpdir}/bootlens-ap-loader`
+5. `{user.home}/.cache/bootlens-ap-loader`
+
+**`UNAVAILABLE` on Alpine / musl — missing C++ runtime**
+
+If the log shows `libstdc++.so.6: cannot open shared object file`, the C++ runtime is missing.
+Install it in the image:
+
+```dockerfile
+# Alpine
+RUN apk add --no-cache libstdc++
+
+# Debian / Ubuntu
+RUN apt-get install -y libstdc++6
+```
+
+Alternatively, use a JRE image built on glibc (e.g. Eclipse Temurin on Ubuntu) where the runtime
+is already present.
+
 To disable:
 
 ```properties

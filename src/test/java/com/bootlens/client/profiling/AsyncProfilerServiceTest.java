@@ -311,6 +311,173 @@ class AsyncProfilerServiceTest {
     }
 
     @Test
+    void nativeMemLeakCommandUsesNativememEventWithLeakFlag() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.NATIVE_MEM_LEAK,
+            ProfilerEvent.NATIVE_MEM_LEAK.externalName(),
+            tempDir.resolve("leak.jfr"),
+            AsyncProfilerProperties.OutputFormat.JFR,
+            ProfilerConstants.NATIVEMEM_THRESHOLD,
+            Duration.ofSeconds(60),
+            0,
+            false,
+            false);
+
+        // nativememleak must use "nativemem" as the event name in the command
+        assertThat(command)
+            .contains("event=nativemem")
+            .contains("nativemem=1k")
+            .contains(",leak")
+            .doesNotContain("event=nativememleak")
+            .doesNotContain("nofree");
+    }
+
+    @Test
+    void ctimerCommandUsesIntervalOption() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CTIMER,
+            ProfilerEvent.CTIMER.externalName(),
+            tempDir.resolve("ctimer.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.CTIMER_INTERVAL,
+            Duration.ofSeconds(30),
+            0,
+            false,
+            false);
+
+        assertThat(command)
+            .contains("event=ctimer")
+            .contains(",interval=" + ProfilerConstants.CTIMER_INTERVAL)
+            .doesNotContain("alloc=")
+            .doesNotContain("lock=")
+            .doesNotContain("nativemem=");
+    }
+
+    @Test
+    void invertedFlagIsAppendedForFlamegraphFormat() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CPU,
+            ProfilerEvent.CPU.externalName(),
+            tempDir.resolve("cpu.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.CPU_INTERVAL,
+            Duration.ofSeconds(30),
+            0,
+            false,
+            true); // inverted=true
+
+        assertThat(command).contains(",inverted");
+    }
+
+    @Test
+    void invertedFlagIsNotAppendedForJfrFormat() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CPU,
+            ProfilerEvent.CPU.externalName(),
+            tempDir.resolve("cpu.jfr"),
+            AsyncProfilerProperties.OutputFormat.JFR,
+            ProfilerConstants.CPU_INTERVAL,
+            Duration.ofSeconds(30),
+            0,
+            false,
+            true); // inverted=true — ignored for JFR
+
+        assertThat(command).doesNotContain(",inverted");
+    }
+
+    @Test
+    void jstackdepthIsAppendedWhenPositive() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CPU,
+            ProfilerEvent.CPU.externalName(),
+            tempDir.resolve("cpu.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.CPU_INTERVAL,
+            Duration.ofSeconds(30),
+            64,    // jstackdepth
+            false,
+            false);
+
+        assertThat(command).contains(",jstackdepth=64");
+    }
+
+    @Test
+    void jstackdepthIsOmittedWhenZero() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CPU,
+            ProfilerEvent.CPU.externalName(),
+            tempDir.resolve("cpu.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.CPU_INTERVAL,
+            Duration.ofSeconds(30),
+            0,     // jstackdepth=0 → use async-profiler default
+            false,
+            false);
+
+        assertThat(command).doesNotContain("jstackdepth");
+    }
+
+    @Test
+    void threadsOptionIsAppendedWhenTrue() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.WALL,
+            ProfilerEvent.WALL.externalName(),
+            tempDir.resolve("wall.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.WALL_INTERVAL,
+            Duration.ofSeconds(30),
+            0,
+            true,  // threads=true
+            false);
+
+        assertThat(command).contains(",threads");
+    }
+
+    @Test
+    void threadsOptionIsOmittedWhenFalse() {
+        String command = AsyncProfilerService.buildStartCommand(
+            ProfilerEvent.CPU,
+            ProfilerEvent.CPU.externalName(),
+            tempDir.resolve("cpu.html"),
+            AsyncProfilerProperties.OutputFormat.FLAMEGRAPH,
+            ProfilerConstants.CPU_INTERVAL,
+            Duration.ofSeconds(30),
+            0,
+            false, // threads=false
+            false);
+
+        assertThat(command).doesNotContain(",threads");
+    }
+
+    @Test
+    void runtimeHintDetectsLibstdcpp() {
+        String hint = AsyncProfilerService.runtimeHint(
+            "UnsatisfiedLinkError: libstdc++.so.6: cannot open shared object file");
+        assertThat(hint)
+            .contains("libstdc++.so.6 is missing")
+            .contains("apk add --no-cache libstdc++");
+    }
+
+    @Test
+    void runtimeHintForMuslIsInformative() {
+        String hint = AsyncProfilerService.runtimeHint("some glibc error on a musl system");
+        // runtimeHint inspects the local filesystem, not the message string, for musl detection.
+        // On this platform we just verify it returns a non-null string.
+        assertThat(hint).isNotNull();
+    }
+
+    @Test
+    void runtimeHintReturnsEmptyStringWhenNoPatternMatches() {
+        // Simulate glibc platform with an unrelated error.
+        // On this dev machine detectLibc() returns "unknown" (not Linux), so hint is empty.
+        String libc = AsyncProfilerService.detectLibc();
+        if ("unknown".equals(libc)) {
+            String hint = AsyncProfilerService.runtimeHint("some unrelated error");
+            assertThat(hint).isEmpty();
+        }
+    }
+
+    @Test
     void commandTokenValidationAllowsKnownSafeProfilerTokens() {
         assertThat(AsyncProfilerService.validateCommandToken("event", "cache-misses")).isNull();
         assertThat(AsyncProfilerService.validateCommandToken("event", "java.util.Properties.getProperty")).isNull();

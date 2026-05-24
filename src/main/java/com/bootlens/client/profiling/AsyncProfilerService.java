@@ -617,12 +617,11 @@ public class AsyncProfilerService {
     }
 
     private static void prepareApLoaderExtractionDirectory(Path extractionDir) throws IOException {
+        // createDirectories throws NotDirectoryException if the path exists as a non-directory,
+        // so the only remaining check needed is writability.
         Files.createDirectories(extractionDir);
-        if (!Files.isDirectory(extractionDir)) {
-            throw new IOException("Path is not a directory");
-        }
         if (!Files.isWritable(extractionDir)) {
-            throw new IOException("Directory is not writable");
+            throw new IOException("Directory is not writable: " + extractionDir);
         }
     }
 

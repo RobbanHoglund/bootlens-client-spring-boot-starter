@@ -62,10 +62,10 @@ public class AsyncProfilerEndpoint {
      * {@code limit} parameter to override the configured default.
      */
     @ReadOperation
-    public Object query(@Selector String operation) {
+    public Object query(@Selector String operation, @Nullable Integer limit) {
         return switch (operation.toLowerCase()) {
-            case "flat"      -> service.dumpFlat(null);
-            case "traces"    -> service.dumpTraces(null);
+            case "flat"      -> service.dumpFlat(limit);
+            case "traces"    -> service.dumpTraces(limit);
             case "collapsed" -> service.dumpCollapsed();
             case "samples"   -> service.getSamples();
             case "version"   -> service.getVersion();
