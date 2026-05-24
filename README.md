@@ -193,6 +193,12 @@ management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump
 
 ### 4. Configure BootLens registration
 
+Registration is enabled by default. When the starter is on the classpath, the
+client attempts registration on application readiness and then sends periodic
+heartbeats to BootLens Server. These calls are best effort and do not fail
+application startup if BootLens Server is unavailable. Set
+`bootlens.client.registration.enabled=false` to opt out entirely.
+
 Important before you copy the example:
 
 - `username` is the BootLens **registrant account**, not your application name
@@ -422,6 +428,12 @@ bootlens.client.diagnostics.heap-dump.allow-download=true
 Prefix:
 
 `bootlens.client.registration`
+
+Registration is default-on. With no explicit opt-out, the client registers on
+application readiness, sends heartbeats every `heartbeat-interval`, and attempts
+deregistration during graceful shutdown. Use
+`bootlens.client.registration.enabled=false` for applications that should never
+contact BootLens Server from this starter.
 
 ### Server connection
 
