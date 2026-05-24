@@ -17,9 +17,11 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@code bootlens.client.profiler.enabled} is {@code true} (default).</li>
  * </ul>
  *
- * <p>The native profiler library is loaded lazily on the first profiling request.
- * If the platform is unsupported (e.g. Windows) the endpoint starts up normally
- * and all operations return a {@code UNAVAILABLE} status rather than failing.
+ * <p>The native profiler runtime is loaded when the service bean is created so
+ * availability problems are visible at startup. Profiling sessions remain
+ * explicit and on-demand. If the platform is unsupported (e.g. Windows) the
+ * endpoint starts up normally and all operations return a {@code UNAVAILABLE}
+ * status rather than failing application startup.
  */
 @AutoConfiguration
 @ConditionalOnClass(name = "one.profiler.AsyncProfiler")

@@ -1239,6 +1239,12 @@ The bundled dependency (`me.bechberger:ap-loader-all`) ships native libraries fo
 Linux arm64, and macOS inside the JAR. No manual installation or agent flag is needed on those
 platforms.
 
+BootLens loads the native async-profiler runtime when the profiler service bean is created. This is
+intentional: container/runtime problems such as a missing native dependency or a no-exec extraction
+directory show up immediately in `/actuator/bootlensProfiler` as `UNAVAILABLE`. Actual profiling is
+still explicit and on-demand; inventory polling and status checks do not start profiling sessions or
+collect profiling data.
+
 ### Platform support
 
 Linux x64, Linux arm64, and macOS are supported. On Windows the endpoint starts but every operation
