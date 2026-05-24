@@ -31,3 +31,28 @@ jobs:
 
       - name: Build and test
         run: ./gradlew clean build -PbootlensVersion=1.0.0-CI
+
+  native-profiler:
+    name: Native async-profiler smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Relax perf restrictions for profiler smoke tests
+        run: |
+          sudo sysctl -w kernel.perf_event_paranoid=1 || true
+          sudo sysctl -w kernel.kptr_restrict=0 || true
+
+      - name: Run native async-profiler tests
+        run: ./gradlew test --tests com.bootlens.client.profiling.AsyncProfilerServiceTest -Dbootlens.test.native-profiler=true -PbootlensVersion=1.0.0-CI

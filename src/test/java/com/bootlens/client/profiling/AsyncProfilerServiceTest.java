@@ -85,6 +85,19 @@ class AsyncProfilerServiceTest {
     // --- Tests that only run when async-profiler native lib is loaded ---
 
     @Test
+    void nativeProfilerIsAvailableWhenNativeExerciseIsEnabled() {
+        assumeThat(Boolean.getBoolean("bootlens.test.native-profiler"))
+            .as("Native async-profiler execution is opt-in")
+            .isTrue();
+
+        AsyncProfilerService.ProfilerStatus status = service.status();
+        assertThat(status.profilerAvailable())
+            .as("Native async-profiler must be available when bootlens.test.native-profiler=true. Load error: %s",
+                status.profilerLoadError())
+            .isTrue();
+    }
+
+    @Test
     void statusIsIdleBeforeAnySession() {
         assumeNativeProfilerExerciseAllowed();
 
