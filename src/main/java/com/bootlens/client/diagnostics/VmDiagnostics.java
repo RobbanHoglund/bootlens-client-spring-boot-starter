@@ -526,15 +526,6 @@ public class VmDiagnostics {
         }
     }
 
-    private boolean isSecurityManagerPresent() {
-        try {
-            Object securityManager = System.class.getMethod("getSecurityManager").invoke(null);
-            return securityManager != null;
-        } catch (ReflectiveOperationException exception) {
-            return false;
-        }
-    }
-
     private record ThreadDumpCaptureOutcome(String dumpText, String source) {
     }
 }

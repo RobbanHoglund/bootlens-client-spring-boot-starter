@@ -420,7 +420,65 @@ public class AsyncProfilerService {
         catch (IOException ex) {
             throw new IllegalStateException("Cannot create profiler output directory: " + dir, ex);
         }
+        cleanupOutputFiles(dir);
         return dir;
+    }
+
+    /**
+     * Deletes profiler output files in the given directory that exceed
+     * {@code maxOutputFiles} or are older than {@code maxOutputAge}.
+     * Only files whose names start with {@code "bootlens-"} are managed.
+     * Errors are logged at DEBUG and never propagated.
+     */
+    private void cleanupOutputFiles(Path outputDir) {
+        int maxFiles = properties.getMaxOutputFiles();
+        Duration maxAge = properties.getMaxOutputAge();
+        boolean ageCleanupEnabled = maxAge != null && !maxAge.isZero() && !maxAge.isNegative();
+        if (maxFiles <= 0 && !ageCleanupEnabled) {
+            return;
+        }
+
+        Instant cutoff = ageCleanupEnabled ? Instant.now().minus(maxAge) : null;
+
+        try {
+            List<Path> managed;
+            try (var stream = Files.list(outputDir)) {
+                managed = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().startsWith("bootlens-"))
+                    .sorted((a, b) -> {
+                        try {
+                            return Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a));
+                        }
+                        catch (IOException ignored) {
+                            return 0;
+                        }
+                    })
+                    .toList();
+            }
+
+            for (int i = 0; i < managed.size(); i++) {
+                Path file = managed.get(i);
+                boolean tooMany = maxFiles > 0 && i >= maxFiles;
+                boolean tooOld = cutoff != null && isOlderThan(file, cutoff);
+                if (tooMany || tooOld) {
+                    Files.deleteIfExists(file);
+                    log.debug("Deleted old profiler output file: {}", file.getFileName());
+                }
+            }
+        }
+        catch (IOException ex) {
+            log.debug("Could not clean up profiler output files in {}: {}", outputDir, ex.getMessage());
+        }
+    }
+
+    private static boolean isOlderThan(Path file, Instant cutoff) {
+        try {
+            return Files.getLastModifiedTime(file).toInstant().isBefore(cutoff);
+        }
+        catch (IOException ignored) {
+            return false;
+        }
     }
 
     /**

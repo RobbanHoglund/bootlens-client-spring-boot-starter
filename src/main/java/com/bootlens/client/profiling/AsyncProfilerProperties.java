@@ -57,6 +57,20 @@ public class AsyncProfilerProperties {
     private boolean threads = false;
 
     /**
+     * Maximum number of profiling output files to retain in the output directory.
+     * When the limit is reached, the oldest files are deleted automatically before
+     * each new session starts. Defaults to {@code 5}.
+     */
+    private int maxOutputFiles = 5;
+
+    /**
+     * Maximum age of profiling output files. Files older than this threshold are
+     * deleted automatically before each new session starts. Defaults to 2 hours.
+     * Set to {@code PT0S} or {@code null} to disable age-based cleanup.
+     */
+    private Duration maxOutputAge = Duration.ofHours(2);
+
+    /**
      * Maximum number of methods shown by the {@code /flat} in-memory dump.
      */
     private int dumpFlatMaxMethods = 50;
@@ -173,6 +187,22 @@ public class AsyncProfilerProperties {
 
     public void setThreads(boolean threads) {
         this.threads = threads;
+    }
+
+    public int getMaxOutputFiles() {
+        return maxOutputFiles;
+    }
+
+    public void setMaxOutputFiles(int maxOutputFiles) {
+        this.maxOutputFiles = maxOutputFiles;
+    }
+
+    public Duration getMaxOutputAge() {
+        return maxOutputAge;
+    }
+
+    public void setMaxOutputAge(Duration maxOutputAge) {
+        this.maxOutputAge = maxOutputAge;
     }
 
     public int getDumpFlatMaxMethods() {

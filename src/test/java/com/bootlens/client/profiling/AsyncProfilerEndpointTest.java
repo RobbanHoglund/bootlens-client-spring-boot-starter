@@ -2,9 +2,6 @@ package com.bootlens.client.profiling;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 
@@ -12,12 +9,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
+
+import java.nio.file.Path;
 
 /**
- * Unit tests for {@link AsyncProfilerEndpoint} — covers the download operation,
- * the query selector routing, and the start/stop delegation, all without
- * requiring the async-profiler native library to be loaded.
+ * Unit tests for {@link AsyncProfilerEndpoint} — covers the query selector routing
+ * and the start/stop delegation, all without requiring the async-profiler native
+ * library to be loaded.
+ *
+ * <p>Download operations are tested in {@link AsyncProfilerWebExtensionTest}.
  */
 class AsyncProfilerEndpointTest {
 
@@ -94,94 +94,6 @@ class AsyncProfilerEndpointTest {
         Object upper = endpoint.query("FLAT", null);
         assertThat(lower).isInstanceOf(AsyncProfilerService.DumpResult.class);
         assertThat(upper).isInstanceOf(AsyncProfilerService.DumpResult.class);
-    }
-
-    // -------------------------------------------------------------------------
-    // download() — file serving
-    // -------------------------------------------------------------------------
-
-    @Test
-    void downloadReturns404ForUnknownSection() {
-        WebEndpointResponse<?> response = endpoint.download("garbage", "any.html");
-        assertThat(response.getStatus()).isEqualTo(404);
-    }
-
-    @Test
-    void downloadReturns400ForFilenameWithSlash() {
-        WebEndpointResponse<?> response = endpoint.download("download", "../../etc/passwd");
-        assertThat(response.getStatus()).isEqualTo(400);
-    }
-
-    @Test
-    void downloadReturns400ForFilenameWithBackslash() {
-        WebEndpointResponse<?> response = endpoint.download("download", "..\\secret.jfr");
-        assertThat(response.getStatus()).isEqualTo(400);
-    }
-
-    @Test
-    void downloadReturns404WhenFileDoesNotExist() {
-        WebEndpointResponse<?> response = endpoint.download("download", "bootlens-nonexistent.html");
-        assertThat(response.getStatus()).isEqualTo(404);
-    }
-
-    @Test
-    void downloadReturns200WithHtmlContentTypeForFlamegraph() throws IOException {
-        Path outputFile = tempDir.resolve("bootlens-abc123.html");
-        Files.writeString(outputFile, "<html>flamegraph</html>");
-
-        WebEndpointResponse<?> response = endpoint.download("download", outputFile.getFileName().toString());
-
-        assertThat(response.getStatus()).isEqualTo(200);
-        assertThat(response.getContentType().toString()).contains("text/html");
-    }
-
-    @Test
-    void downloadReturns200WithOctetStreamContentTypeForJfr() throws IOException {
-        Path outputFile = tempDir.resolve("bootlens-abc123.jfr");
-        Files.write(outputFile, new byte[]{0, 1, 2, 3});
-
-        WebEndpointResponse<?> response = endpoint.download("download", outputFile.getFileName().toString());
-
-        assertThat(response.getStatus()).isEqualTo(200);
-        assertThat(response.getContentType().toString()).contains("application/octet-stream");
-    }
-
-    @Test
-    void downloadReturns200WithTextContentTypeForCollapsed() throws IOException {
-        Path outputFile = tempDir.resolve("bootlens-abc123.txt");
-        Files.writeString(outputFile, "collapsed;stacks 42\n");
-
-        WebEndpointResponse<?> response = endpoint.download("download", outputFile.getFileName().toString());
-
-        assertThat(response.getStatus()).isEqualTo(200);
-        assertThat(response.getContentType().toString()).contains("text/plain");
-    }
-
-    @Test
-    void downloadReturns500WhenFileTooLarge() throws IOException {
-        Path outputFile = tempDir.resolve("bootlens-huge.html");
-
-        // Write a file larger than MAX_OUTPUT_BYTES by extending its reported size
-        // without writing the full data — use a sparse file approach via a channel.
-        // Since we cannot easily create a 100MB+ sparse file in a unit test,
-        // we instead verify the size check branches by reflection/substitution.
-        // The simplest safe approach: write content and assert that a normal-sized
-        // file passes (tested above), and trust the size-limit branch is exercised
-        // by code inspection. This test documents intent and ensures the branch compiles.
-        Files.writeString(outputFile, "<html>content</html>");
-        WebEndpointResponse<?> normalResponse = endpoint.download("download", outputFile.getFileName().toString());
-        assertThat(normalResponse.getStatus()).isEqualTo(200);
-        // MAX_OUTPUT_BYTES = 100 MB; our test file is tiny — confirms the happy path.
-        assertThat(ProfilerConstants.MAX_OUTPUT_BYTES).isEqualTo(100L * 1024L * 1024L);
-    }
-
-    @Test
-    void downloadIsCaseInsensitiveForSectionName() throws IOException {
-        Path outputFile = tempDir.resolve("bootlens-abc123.html");
-        Files.writeString(outputFile, "<html>ok</html>");
-
-        WebEndpointResponse<?> response = endpoint.download("DOWNLOAD", outputFile.getFileName().toString());
-        assertThat(response.getStatus()).isEqualTo(200);
     }
 
     // -------------------------------------------------------------------------

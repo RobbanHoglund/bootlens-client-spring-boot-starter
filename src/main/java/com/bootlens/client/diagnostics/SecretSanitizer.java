@@ -31,7 +31,12 @@ public class SecretSanitizer {
         "client_secret",
         "authorization",
         "cookie",
-        "session"
+        "session",
+        // Connection string patterns — DATABASE_URL, REDIS_URL, JDBC_URL, etc.
+        // carry embedded credentials and must be masked when they appear in key names.
+        "url",
+        "dsn",
+        "connection"
     );
 
     private static final Set<String> PRIVACY_KEYS = Set.of(

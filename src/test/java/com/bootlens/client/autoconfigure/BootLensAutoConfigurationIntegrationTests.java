@@ -70,6 +70,9 @@ class BootLensAutoConfigurationIntegrationTests {
                 assertThat(context).doesNotHaveBean("heapDumpManager");
                 assertThat(context).doesNotHaveBean("vmDiagnostics");
                 assertThat(context).doesNotHaveBean(BootLensDiagnosticsEndpoint.class);
+                // Info contributors also disabled when diagnostics disabled (P1-6 fix)
+                assertThat(context).doesNotHaveBean("bootLensClientVersionInfoContributor");
+                assertThat(context).doesNotHaveBean("bootLensPortInfoContributor");
             });
     }
 

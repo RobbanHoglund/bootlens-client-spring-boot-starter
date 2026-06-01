@@ -329,7 +329,7 @@ public class BootLensRegistrationClient {
 
     private String resolveCacheBackend() {
         String configuredBackend = firstNonBlank(
-            environment.getProperty("demo.cache.backend"),
+            properties.getCacheBackend(),
             environment.getProperty("spring.cache.type")
         );
         if (isBlank(configuredBackend)) {

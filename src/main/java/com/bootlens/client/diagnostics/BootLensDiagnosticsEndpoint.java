@@ -1,10 +1,12 @@
 package com.bootlens.client.diagnostics;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
@@ -18,6 +20,8 @@ public class BootLensDiagnosticsEndpoint {
     private final VmDiagnostics vmDiagnostics;
     private final HeapDumpManager heapDumpManager;
     private final BootLensHealthDiagnosticsService healthDiagnosticsService;
+    // Tracks the last execution timestamp of each expensive operation for rate limiting.
+    private final Map<BootLensDiagnosticOperation, Instant> lastExecutedAt = new ConcurrentHashMap<>();
 
     public BootLensDiagnosticsEndpoint(
         BootLensDiagnosticsProperties properties,
@@ -132,6 +136,34 @@ public class BootLensDiagnosticsEndpoint {
                 "Expensive BootLens diagnostics are disabled by configuration.",
                 Map.of()
             );
+        }
+
+        if (resolvedOperation.isExpensive()) {
+            Duration cooldown = properties.getExpensiveOperationCooldown();
+            if (cooldown != null && !cooldown.isZero() && !cooldown.isNegative()) {
+                Instant last = lastExecutedAt.get(resolvedOperation);
+                if (last != null) {
+                    Duration elapsed = Duration.between(last, timestamp);
+                    if (elapsed.compareTo(cooldown) < 0) {
+                        long remainingSeconds = Math.max(1, cooldown.minus(elapsed).toSeconds());
+                        return new BootLensDiagnosticResponse(
+                            resolvedOperation.name(),
+                            BootLensDiagnosticStatus.RATE_LIMITED,
+                            null,
+                            0L,
+                            false,
+                            timestamp,
+                            "Operation '" + resolvedOperation.getId() + "' was executed recently. "
+                                + "Wait " + remainingSeconds + " more second(s) before retrying.",
+                            Map.of(
+                                "cooldownSeconds", cooldown.toSeconds(),
+                                "remainingSeconds", remainingSeconds
+                            )
+                        );
+                    }
+                }
+                lastExecutedAt.put(resolvedOperation, timestamp);
+            }
         }
 
         long startTime = System.nanoTime();

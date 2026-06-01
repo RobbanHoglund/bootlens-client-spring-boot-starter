@@ -39,6 +39,13 @@ public class BootLensRegistrationProperties {
     private boolean deregisterOnShutdown = true;
     private Map<String, String> labels = new LinkedHashMap<>();
 
+    /**
+     * Optional cache backend label sent as instance metadata during registration.
+     * Overrides the value inferred from {@code spring.cache.type}.
+     * Example values: {@code caffeine}, {@code redis}, {@code hazelcast}.
+     */
+    private String cacheBackend;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -263,5 +270,13 @@ public class BootLensRegistrationProperties {
 
     public void setLabels(Map<String, String> labels) {
         this.labels = labels == null ? new LinkedHashMap<>() : labels;
+    }
+
+    public String getCacheBackend() {
+        return cacheBackend;
+    }
+
+    public void setCacheBackend(String cacheBackend) {
+        this.cacheBackend = cacheBackend;
     }
 }

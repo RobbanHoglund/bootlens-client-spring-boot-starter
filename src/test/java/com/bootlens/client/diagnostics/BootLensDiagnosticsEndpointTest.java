@@ -95,6 +95,54 @@ class BootLensDiagnosticsEndpointTest {
     }
 
     @Test
+    void expensiveOperationIsRateLimitedOnSecondCallWithinCooldown() throws Exception {
+        BootLensDiagnosticsProperties properties = defaultProperties();
+        properties.setAllowExpensive(true);
+        properties.setExpensiveOperationCooldown(java.time.Duration.ofSeconds(60));
+        BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(
+            properties, stubVmDiagnostics(), new HeapDumpManager(properties));
+
+        // First call should succeed
+        BootLensDiagnosticResponse first = endpoint.invoke("THREAD_DUMP");
+        assertThat(first.status()).isEqualTo(BootLensDiagnosticStatus.SUCCESS);
+
+        // Immediate second call should be rate-limited
+        BootLensDiagnosticResponse second = endpoint.invoke("THREAD_DUMP");
+        assertThat(second.status()).isEqualTo(BootLensDiagnosticStatus.RATE_LIMITED);
+        assertThat(second.errorMessage()).contains("executed recently");
+        assertThat(second.details()).containsKey("cooldownSeconds");
+        assertThat(second.details()).containsKey("remainingSeconds");
+    }
+
+    @Test
+    void expensiveOperationIsNotRateLimitedWhenCooldownIsZero() throws Exception {
+        BootLensDiagnosticsProperties properties = defaultProperties();
+        properties.setAllowExpensive(true);
+        properties.setExpensiveOperationCooldown(java.time.Duration.ZERO);
+        BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(
+            properties, stubVmDiagnostics(), new HeapDumpManager(properties));
+
+        endpoint.invoke("THREAD_DUMP");
+        BootLensDiagnosticResponse second = endpoint.invoke("THREAD_DUMP");
+        assertThat(second.status()).isEqualTo(BootLensDiagnosticStatus.SUCCESS);
+    }
+
+    @Test
+    void nonExpensiveOperationIsNeverRateLimited() throws Exception {
+        BootLensDiagnosticsProperties properties = defaultProperties();
+        properties.setAllowExpensive(true);
+        properties.setExpensiveOperationCooldown(java.time.Duration.ofSeconds(60));
+        BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(
+            properties, stubVmDiagnostics(), new HeapDumpManager(properties));
+
+        // VM_FLAGS is not expensive — should never be rate-limited
+        endpoint.invoke("VM_FLAGS");
+        BootLensDiagnosticResponse second = endpoint.invoke("VM_FLAGS");
+        // sensitive by default, so REJECTED_SENSITIVE — but definitely not RATE_LIMITED
+        assertThat(second.status()).isNotEqualTo(BootLensDiagnosticStatus.RATE_LIMITED);
+    }
+
+    @Test
     void heapDumpIsDisabledByDefault() throws Exception {
         BootLensDiagnosticsProperties properties = defaultProperties();
         BootLensDiagnosticsEndpoint endpoint = new BootLensDiagnosticsEndpoint(properties, stubVmDiagnostics(), new HeapDumpManager(properties));

@@ -134,6 +134,81 @@ class SecretSanitizerTest {
         assertThat(sanitized).contains("java.library.path=<redacted>");
     }
 
+    // -------------------------------------------------------------------------
+    // Connection string / URL patterns (P0-2 fix)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void masksDatabaseUrlEnvironmentVariable() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        // Cloud platforms (Railway, Heroku, Render, Fly) inject DATABASE_URL as a
+        // single connection string with embedded credentials. It must be masked.
+        assertThat(sanitizer.sanitizeEntry("DATABASE_URL", "postgres://user:s3cr3t@host/db"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksRedisUrl() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        assertThat(sanitizer.sanitizeEntry("REDIS_URL", "redis://:s3cr3t@host:6379"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksMongoUrl() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        assertThat(sanitizer.sanitizeEntry("MONGO_URL", "mongodb://user:pass@host/db"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksJdbcUrl() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        assertThat(sanitizer.sanitizeEntry("JDBC_URL", "jdbc:postgresql://user:pass@host/db"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksDatabaseDsn() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        assertThat(sanitizer.sanitizeEntry("DB_DSN", "sqlite:///tmp/db.sqlite"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksConnectionString() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        assertThat(sanitizer.sanitizeEntry("DB_CONNECTION_STRING", "Server=host;Password=s3cr3t;"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksSpringDatasourceUrl() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+
+        // -Dspring.datasource.url=jdbc:postgresql://user:pass@host/db
+        assertThat(sanitizer.sanitizeEntry("spring.datasource.url",
+            "jdbc:postgresql://user:pass@host/db"))
+            .isEqualTo("******");
+    }
+
+    @Test
+    void masksConnectionStringInEnvOutput() {
+        SecretSanitizer sanitizer = sanitizerWithDefaults();
+        String envLine = "DATABASE_URL=postgres://user:s3cr3t@host/db";
+
+        String sanitized = sanitizer.sanitizeProperties(envLine);
+
+        assertThat(sanitized).contains("DATABASE_URL=******");
+        assertThat(sanitized).doesNotContain("s3cr3t");
+    }
+
     private static SecretSanitizer sanitizerWithDefaults() {
         return new SecretSanitizer(defaultProperties());
     }

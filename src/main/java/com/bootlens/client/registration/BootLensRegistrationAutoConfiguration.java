@@ -2,6 +2,7 @@ package com.bootlens.client.registration;
 
 import java.time.Clock;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,8 +24,8 @@ public class BootLensRegistrationAutoConfiguration {
         return new HttpRegistrationTransport();
     }
 
-    @Bean
-    @ConditionalOnMissingBean(Clock.class)
+    @Bean("bootLensRegistrationClock")
+    @ConditionalOnMissingBean(name = "bootLensRegistrationClock")
     Clock bootLensRegistrationClock() {
         return Clock.systemUTC();
     }
@@ -35,7 +36,7 @@ public class BootLensRegistrationAutoConfiguration {
         BootLensRegistrationProperties properties,
         Environment environment,
         RegistrationTransport registrationTransport,
-        Clock clock
+        @Qualifier("bootLensRegistrationClock") Clock clock
     ) {
         return new BootLensRegistrationClient(properties, environment, registrationTransport, clock);
     }

@@ -32,11 +32,20 @@ class AsyncProfilerAutoConfigurationTest {
     }
 
     @Test
-    void servletApplicationsUseActuatorEndpointWithoutRegisteringFallbackController() {
+    void servletApplicationsRegisterWebExtensionForDownloadSupport() {
         webContextRunner.run(context -> {
             assertThat(context).hasSingleBean(AsyncProfilerService.class);
             assertThat(context).hasSingleBean(AsyncProfilerEndpoint.class);
-            assertThat(context).doesNotHaveBean("asyncProfilerController");
+            assertThat(context).hasSingleBean(AsyncProfilerWebExtension.class);
+        });
+    }
+
+    @Test
+    void nonWebApplicationsDoNotRegisterWebExtension() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(AsyncProfilerService.class);
+            assertThat(context).hasSingleBean(AsyncProfilerEndpoint.class);
+            assertThat(context).doesNotHaveBean(AsyncProfilerWebExtension.class);
         });
     }
 
@@ -122,6 +131,32 @@ class AsyncProfilerAutoConfigurationTest {
             .run(context -> {
                 AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
                 assertThat(props.isThreads()).isTrue();
+            });
+    }
+
+    @Test
+    void maxOutputFilesDefaultIsPositive() {
+        contextRunner.run(context -> {
+            AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+            assertThat(props.getMaxOutputFiles()).isGreaterThan(0);
+        });
+    }
+
+    @Test
+    void maxOutputAgeDefaultIsNotNull() {
+        contextRunner.run(context -> {
+            AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+            assertThat(props.getMaxOutputAge()).isNotNull();
+        });
+    }
+
+    @Test
+    void customMaxOutputFilesIsApplied() {
+        contextRunner
+            .withPropertyValues("bootlens.client.profiler.max-output-files=10")
+            .run(context -> {
+                AsyncProfilerProperties props = context.getBean(AsyncProfilerProperties.class);
+                assertThat(props.getMaxOutputFiles()).isEqualTo(10);
             });
     }
 

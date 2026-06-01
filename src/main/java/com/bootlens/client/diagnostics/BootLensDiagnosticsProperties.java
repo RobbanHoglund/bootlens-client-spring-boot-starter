@@ -25,6 +25,13 @@ public class BootLensDiagnosticsProperties {
     private boolean includeClasspath = false;
     private boolean endpointTimingHeaderEnabled = true;
     private int maxOutputChars = 2_000_000;
+    /**
+     * Minimum time that must pass between two executions of the same expensive operation.
+     * Prevents runaway load on the JVM from repeated calls to operations such as
+     * {@code GC_CLASS_HISTOGRAM} or {@code HEAP_DUMP} that can stall GC or write large files.
+     * Set to {@code PT0S} (zero) to disable rate limiting. Default is 30 seconds.
+     */
+    private Duration expensiveOperationCooldown = Duration.ofSeconds(30);
     private final HeapDump heapDump = new HeapDump();
     private final HealthDiagnostics healthDiagnostics = new HealthDiagnostics();
 
@@ -114,6 +121,14 @@ public class BootLensDiagnosticsProperties {
 
     public void setEndpointTimingHeaderEnabled(boolean endpointTimingHeaderEnabled) {
         this.endpointTimingHeaderEnabled = endpointTimingHeaderEnabled;
+    }
+
+    public Duration getExpensiveOperationCooldown() {
+        return expensiveOperationCooldown;
+    }
+
+    public void setExpensiveOperationCooldown(Duration expensiveOperationCooldown) {
+        this.expensiveOperationCooldown = expensiveOperationCooldown;
     }
 
     public HeapDump getHeapDump() {

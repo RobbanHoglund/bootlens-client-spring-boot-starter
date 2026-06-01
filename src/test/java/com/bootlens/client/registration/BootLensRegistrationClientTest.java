@@ -225,9 +225,9 @@ class BootLensRegistrationClientTest {
         properties.setZone("lab-a");
         properties.setSlot("primary");
         properties.setLabels(Map.of("tier", "backend", "topology", "single-instance"));
+        properties.setCacheBackend("caffeine"); // use the proper property (not demo.cache.backend)
         MockEnvironment environment = new MockEnvironment()
             .withProperty("server.port", "9091")
-            .withProperty("demo.cache.backend", "caffeine")
             .withProperty("spring.application.name", "Spinning Threads App")
             .withProperty("spring.profiles.active", "local");
         environment.setActiveProfiles("local");

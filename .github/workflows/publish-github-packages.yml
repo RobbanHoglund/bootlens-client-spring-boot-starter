@@ -9,8 +9,19 @@ permissions:
   contents: write
   packages: write
 
+# When the release-client-starter workflow triggers a release, it pushes a tag
+# using the default GITHUB_TOKEN (actor = github-actions[bot]) AND publishes
+# the artifact itself. Allowing this workflow to also run on that tag push
+# would cause a duplicate publish. The condition below skips the run when the
+# tag was created by the automated release workflow.
+
+
 jobs:
   publish:
+    # Skip when the tag was pushed by the automated release workflow to avoid
+    # a duplicate publish. The release-client-starter.yml workflow already
+    # publishes the artifact before pushing the tag.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:

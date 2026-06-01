@@ -49,7 +49,7 @@ Spring Boot 3.x is not supported by the 1.0.x line.
 ## Build And Run Locally
 
 ```bash
-cd /c/ws/git/bootlens-client-spring-boot-starter
+cd /path/to/bootlens-client-spring-boot-starter
 ./gradlew test
 ./gradlew build
 ```
@@ -375,6 +375,7 @@ Prefix:
 | `include-classpath` | `false` | Includes `java.class.path` in `SYSTEM_PROPERTIES` output |
 | `endpoint-timing-header-enabled` | `true` | Adds BootLens endpoint timing response headers for actuator requests |
 | `max-output-chars` | `2000000` | Truncates response output at this character count |
+| `expensive-operation-cooldown` | `PT30S` | Minimum time between successive executions of the same expensive operation (e.g. `GC_CLASS_HISTOGRAM`, `THREAD_DUMP`, `HEAP_DUMP`). Set to `PT0S` to disable rate limiting. |
 
 ### Health diagnostics properties
 
@@ -506,6 +507,7 @@ especially useful for `server.port=0` or `management.server.port=0`.
 | `heartbeat-interval` | `PT10S` | How often periodic heartbeats are sent to BootLens server |
 | `register-on-startup` | `true` | Registers with BootLens when the application becomes ready |
 | `deregister-on-shutdown` | `true` | Attempts deregistration on graceful shutdown |
+| `cache-backend` | *(derived)* | Optional cache backend label for instance metadata. Overrides the value inferred from `spring.cache.type`. Example: `caffeine`, `redis`, `hazelcast`. |
 
 Core metadata guidance:
 
@@ -1270,6 +1272,8 @@ Prefix: `bootlens.client.profiler`
 |---|---|---|
 | `enabled` | `true` | Set to `false` to disable the integration entirely |
 | `output-dir` | `${java.io.tmpdir}/bootlens-profiles` | Directory where output files are written |
+| `max-output-files` | `5` | Maximum profiling output files to keep; oldest are deleted automatically before each new session |
+| `max-output-age` | `PT2H` | Profiling output files older than this are deleted automatically; set to `PT0S` to disable |
 | `default-event` | `cpu` | Profiling event used when none is specified in the request |
 | `default-duration` | `30s` | Session length when none is specified in the request |
 | `default-format` | `flamegraph` | Output format when none is specified in the request |
@@ -1975,19 +1979,44 @@ curl -X DELETE http://localhost:9091/actuator/bootlensProfiler
 curl -O http://localhost:9091/actuator/bootlensProfiler/download/bootlens-abc123def456.html
 ```
 
+## Runtime Side Effects
+
+When this starter is on the classpath the following happen automatically without explicit configuration:
+
+| Action | Thread / resource | Opt-out property |
+|---|---|---|
+| HTTP POST to BootLens server on startup | `bootlens-registration-heartbeat` daemon thread | `bootlens.client.registration.enabled=false` |
+| HTTP POST heartbeat every 10 seconds | Same thread | `bootlens.client.registration.enabled=false` |
+| HTTP DELETE on graceful shutdown | Shutdown hook | `bootlens.client.registration.deregister-on-shutdown=false` |
+| Memory pressure monitor poll every 60 s | Daemon thread | `bootlens.client.monitoring.memory-pressure.enabled=false` |
+| GC pause monitor poll every 60 s | Daemon thread | `bootlens.client.monitoring.gc-pressure.enabled=false` |
+| File descriptor monitor poll every 60 s | Daemon thread | `bootlens.client.monitoring.file-descriptors.enabled=false` |
+| Direct memory monitor poll every 60 s | Daemon thread | `bootlens.client.monitoring.direct-memory.enabled=false` |
+| Thread deadlock detector poll every 60 s | Daemon thread | `bootlens.client.monitoring.thread-deadlock.enabled=false` |
+| **Log error rate monitor — attaches a Logback appender to the root logger** | Daemon thread | `bootlens.client.monitoring.log-errors.enabled=false` |
+| Metaspace monitor poll every 60 s | Daemon thread | `bootlens.client.monitoring.metaspace.enabled=false` |
+| async-profiler native library extraction/loading at startup | Startup (no background thread) | `bootlens.client.profiler.enabled=false` |
+| `bootlens-profiler-scheduler` daemon thread | Daemon thread | `bootlens.client.profiler.enabled=false` |
+
+**Note on Logback appender:** The log error rate monitor registers a custom appender on the Logback root logger at application readiness. This modifies the logging pipeline. If your application uses Logback and you do not want this side effect, disable the monitor explicitly.
+
+All registration and heartbeat calls are best-effort: BootLens Server unavailability does not fail application startup. The first failure is logged at WARN and subsequent retries at DEBUG.
+
 ## Safety Notes
 
 - Sensitive diagnostics are blocked by default.
 - Expensive diagnostics can be disabled independently.
+- **Expensive operations (`GC_CLASS_HISTOGRAM`, `HEAP_DUMP`, `THREAD_DUMP`, etc.) are rate-limited by default** (`expensive-operation-cooldown=30s`). Set `bootlens.client.diagnostics.expensive-operation-cooldown=PT0S` to disable.
 - Heap dump creation is disabled by default and must be explicitly enabled.
 - Heap dumps are highly sensitive and may contain secrets, tokens, private data, cached objects, and full in-memory application state.
 - Heap dump creation can pause or slow the JVM and heap dump files can be very large.
 - Heap dump creation and download should be treated as operator/admin actions in BootLens, not casual browsing features.
 - `sanitize-privacy=true` masks local usernames, home directories, temp paths, machine names, local working directories, and other privacy-sensitive runtime values.
 - `include-classpath=false` omits `java.class.path` from `SYSTEM_PROPERTIES` output by default because classpaths are often very large and reveal local machine paths.
-- Output is sanitized by default for both common secret-like keys and privacy-sensitive runtime values.
+- Output is sanitized by default for both common secret-like keys and privacy-sensitive runtime values. The sanitizer masks common credential keys including `password`, `token`, `secret`, `api_key`, `url` (covers `DATABASE_URL`, `REDIS_URL`, etc.), `dsn`, `connection`, and more.
 - Output is truncated when it exceeds `max-output-chars`.
+- **`allow-sensitive=true` must never be enabled permanently in production.** Operations like `ENV` and `SYSTEM_PROPERTIES` can expose database connection strings (e.g. `DATABASE_URL=postgres://user:pass@host/db`). While the sanitizer masks known patterns, treat sensitive output as operator-only tooling.
 - For local debugging, you can explicitly enable classpath output with `bootlens.client.diagnostics.include-classpath=true`.
 - Heap dump download is only available for heap dumps created by BootLens and only when `bootlens.client.diagnostics.heap-dump.allow-download=true`.
 - The starter does not change standard Spring Boot Actuator behavior for existing endpoints.
-- Registration and heartbeat calls are best effort and do not fail application startup if BootLens Server is unavailable.
+- **Always use HTTPS** for `bootlens.client.registration.server-url` in production. Registration payloads include the `actuator-password` credential and must not be sent over unencrypted HTTP.

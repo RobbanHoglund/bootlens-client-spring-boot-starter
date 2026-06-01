@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,7 +30,9 @@ class HeapDumpManager {
     private static final Pattern HEAP_DUMP_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9-]+$");
 
     private final BootLensDiagnosticsProperties properties;
-    private final Map<String, StoredHeapDump> heapDumps = new LinkedHashMap<>();
+    // Synchronized map: individual put/get/remove operations are thread-safe, and
+    // compound operations (iteration, removeIf) use an explicit synchronized(heapDumps) block.
+    private final Map<String, StoredHeapDump> heapDumps = Collections.synchronizedMap(new LinkedHashMap<>());
 
     HeapDumpManager(BootLensDiagnosticsProperties properties) {
         this.properties = properties;
@@ -188,7 +191,11 @@ class HeapDumpManager {
 
     private void deleteManagedFile(Path path) throws IOException {
         Files.deleteIfExists(path);
-        heapDumps.entrySet().removeIf(entry -> entry.getValue().path().equals(path));
+        // synchronized(heapDumps) required because Collections.synchronizedMap does not
+        // protect compound iteration/mutation operations such as removeIf.
+        synchronized (heapDumps) {
+            heapDumps.entrySet().removeIf(entry -> entry.getValue().path().equals(path));
+        }
         logger.info("BootLens deleted heap dump {}", path.getFileName());
     }
 

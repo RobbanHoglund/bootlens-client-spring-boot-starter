@@ -1,10 +1,6 @@
 package com.bootlens.client.profiling;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
-
 import java.util.Map;
 
 import org.springframework.boot.actuate.endpoint.annotation.DeleteOperation;
@@ -12,22 +8,21 @@ import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.lang.Nullable;
-import org.springframework.util.MimeType;
 
 /**
  * Spring Boot actuator endpoint that exposes the embedded async-profiler.
  *
  * <ul>
  *   <li>{@code GET  /actuator/bootlensProfiler} — current profiler status</li>
+ *   <li>{@code GET  /actuator/bootlensProfiler/{operation}} — in-memory dump or query</li>
  *   <li>{@code POST /actuator/bootlensProfiler} — start a profiling session</li>
  *   <li>{@code DELETE /actuator/bootlensProfiler} — stop the active session</li>
  * </ul>
  *
- * <p>Download support is exposed by the same web endpoint at
- * {@code /actuator/bootlensProfiler/download/{filename}}.
+ * <p>File download support is provided by {@link AsyncProfilerWebExtension}, which is
+ * activated only in Servlet web contexts and extends this endpoint with the
+ * {@code GET /actuator/bootlensProfiler/download/{filename}} operation.
  */
 @Endpoint(id = "bootlensProfiler")
 public class AsyncProfilerEndpoint {
@@ -76,54 +71,6 @@ public class AsyncProfilerEndpoint {
     }
 
     /**
-     * Downloads a profiling result file.
-     */
-    @ReadOperation
-    public WebEndpointResponse<?> download(@Selector String section, @Selector String filename) {
-        if (!"download".equalsIgnoreCase(section)) {
-            return new WebEndpointResponse<>(
-                Map.of("message", "Use /actuator/bootlensProfiler/download/{filename}"), 404);
-        }
-
-        if (filename == null || filename.contains("/") || filename.contains("\\")
-            || filename.contains("..")) {
-            return new WebEndpointResponse<>(
-                Map.of("message", "Invalid filename."), 400);
-        }
-
-        Path file;
-        try {
-            file = service.resolveOutputFile(filename);
-        }
-        catch (SecurityException ex) {
-            return new WebEndpointResponse<>(
-                Map.of("message", "Access denied: " + ex.getMessage()), 403);
-        }
-
-        if (!Files.exists(file) || !Files.isRegularFile(file)) {
-            return new WebEndpointResponse<>(
-                Map.of("message", "Profiling output file not found: " + filename), 404);
-        }
-
-        try {
-            long fileSize = Files.size(file);
-            if (fileSize > ProfilerConstants.MAX_OUTPUT_BYTES) {
-                return new WebEndpointResponse<>(
-                    Map.of("message", "Profiling output file is too large to serve: "
-                        + (fileSize / (1024 * 1024)) + " MB (limit "
-                        + (ProfilerConstants.MAX_OUTPUT_BYTES / (1024 * 1024)) + " MB)"), 500);
-            }
-        }
-        catch (IOException ex) {
-            return new WebEndpointResponse<>(
-                Map.of("message", "Could not read profiling output file: " + ex.getMessage()), 500);
-        }
-
-        MimeType mimeType = resolveMimeType(filename);
-        return new WebEndpointResponse<>(new FileSystemResource(file), 200, mimeType);
-    }
-
-    /**
      * Starts a new profiling session.
      *
      * @param event           profiling event: {@code cpu}, {@code alloc}, {@code wall}, {@code lock},
@@ -162,15 +109,5 @@ public class AsyncProfilerEndpoint {
     @DeleteOperation
     public AsyncProfilerService.StopResult stopProfiling() {
         return service.stop();
-    }
-
-    private static MimeType resolveMimeType(String filename) {
-        if (filename.endsWith(".html")) {
-            return MimeType.valueOf("text/html");
-        }
-        if (filename.endsWith(".jfr")) {
-            return MimeType.valueOf("application/octet-stream");
-        }
-        return MimeType.valueOf("text/plain");
     }
 }
