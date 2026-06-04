@@ -292,7 +292,7 @@ management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump
 management.endpoint.health.show-details=always
 
 bootlens.client.registration.enabled=true
-bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:8080
 bootlens.client.registration.username=registrant
 bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
 
@@ -583,7 +583,7 @@ Hosted private-network example:
 
 ```properties
 bootlens.client.registration.enabled=true
-bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:8080
 bootlens.client.registration.username=registrant
 bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
 
@@ -691,7 +691,7 @@ With auto-configuration active, the only required properties are the BootLens
 server address and credentials:
 
 ```properties
-bootlens.client.registration.server-url=http://bootlens-server.railway.internal:9090
+bootlens.client.registration.server-url=http://bootlens-server.railway.internal:8080
 bootlens.client.registration.username=registrant
 bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
 
