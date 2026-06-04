@@ -25,7 +25,7 @@ import org.springframework.core.env.MapPropertySource;
  *   <li>{@code environment} ← {@code RAILWAY_ENVIRONMENT_NAME} (default: production)</li>
  *   <li>{@code region} ← {@code RAILWAY_REGION} (when set)</li>
  *   <li>{@code base-url} ← {@code https://RAILWAY_PUBLIC_DOMAIN} (when set)</li>
- *   <li>{@code actuator-base-url} ← {@code http://RAILWAY_PRIVATE_DOMAIN:PORT/actuator}
+ *   <li>{@code actuator-base-url} ← {@code http://RAILWAY_PRIVATE_DOMAIN:{server.port or PORT}/actuator}
  *       (preferred) or public domain fallback</li>
  *   <li>{@code labels.railway-service} ← {@code RAILWAY_SERVICE_NAME}</li>
  *   <li>{@code labels.railway-environment} ← {@code RAILWAY_ENVIRONMENT_NAME}</li>
@@ -53,7 +53,7 @@ public class RailwayRegistrationEnvironmentPostProcessor implements EnvironmentP
 
         String environmentName = environment.getProperty("RAILWAY_ENVIRONMENT_NAME", "production");
         String hostname        = environment.getProperty("HOSTNAME", "unknown");
-        String port            = environment.getProperty("PORT", "8080");
+        String port            = firstNonBlank(environment.getProperty("server.port"), environment.getProperty("PORT", "8080"));
         String privateDomain   = environment.getProperty("RAILWAY_PRIVATE_DOMAIN");
         String publicDomain    = environment.getProperty("RAILWAY_PUBLIC_DOMAIN");
         String region          = environment.getProperty("RAILWAY_REGION");
@@ -107,5 +107,9 @@ public class RailwayRegistrationEnvironmentPostProcessor implements EnvironmentP
 
     private static boolean hasValue(String s) {
         return s != null && !s.isBlank();
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return hasValue(first) ? first : second;
     }
 }

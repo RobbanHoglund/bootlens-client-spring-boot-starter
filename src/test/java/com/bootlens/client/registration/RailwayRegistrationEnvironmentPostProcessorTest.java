@@ -138,6 +138,21 @@ class RailwayRegistrationEnvironmentPostProcessorTest {
     }
 
     @Test
+    void prefersExplicitServerPortOverRailwayPortForActuatorUrl() {
+        StandardEnvironment env = envWithRailway("bootlens-server", "production");
+        addVars(env, Map.of(
+            "RAILWAY_PRIVATE_DOMAIN", "bootlens-server.railway.internal",
+            "PORT",                   "8080",
+            "server.port",            "9090"
+        ));
+
+        processor.postProcessEnvironment(env, null);
+
+        assertThat(env.getProperty("bootlens.client.registration.actuator-base-url"))
+            .isEqualTo("http://bootlens-server.railway.internal:9090/actuator");
+    }
+
+    @Test
     void fallsBackToPublicDomainForActuatorUrlWhenPrivateAbsent() {
         StandardEnvironment env = envWithRailway("my-service", "production");
         addVars(env, Map.of("RAILWAY_PUBLIC_DOMAIN", "my-service.up.railway.app"));

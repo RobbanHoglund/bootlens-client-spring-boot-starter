@@ -670,7 +670,7 @@ to get the core registration metadata right on Railway.
 | `environment` | `RAILWAY_ENVIRONMENT_NAME` (default: `production`) |
 | `region` | `RAILWAY_REGION` (when set) |
 | `base-url` | `https://{RAILWAY_PUBLIC_DOMAIN}` (when set) |
-| `actuator-base-url` | `http://{RAILWAY_PRIVATE_DOMAIN}:{PORT}/actuator` (preferred) or public domain fallback |
+| `actuator-base-url` | `http://{RAILWAY_PRIVATE_DOMAIN}:{server.port or PORT}/actuator` (preferred) or public domain fallback |
 | `labels.railway-service` | `RAILWAY_SERVICE_NAME` |
 | `labels.railway-environment` | `RAILWAY_ENVIRONMENT_NAME` |
 | `labels.railway-project` | `RAILWAY_PROJECT_NAME` (when set) |
