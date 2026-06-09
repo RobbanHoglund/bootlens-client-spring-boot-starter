@@ -37,7 +37,9 @@ public class MonitoringPropertiesEnvironmentPostProcessor implements Environment
             "warning-errors-per-interval",
             "critical-errors-per-interval",
             "emergency-errors-per-interval",
-            "check-interval")
+            "check-interval"),
+        new AliasGroup("bootlens.client.health", "bootlens.client.monitoring.health",
+            "enabled")
     );
 
     @Override

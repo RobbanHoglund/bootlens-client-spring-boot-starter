@@ -15,6 +15,29 @@ import org.springframework.mock.env.MockEnvironment;
 class BootLensRegistrationLifecycleTest {
 
     @Test
+    void startupRegistrationFailureDoesNotEscapeToHostApplication() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setRegisterOnStartup(true);
+        // A client whose resolution blows up with an unchecked exception simulates any
+        // unexpected failure (DNS lookup, MBean access, etc.) on the startup path.
+        BootLensRegistrationClient throwingClient =
+            new BootLensRegistrationClient(properties, new MockEnvironment()) {
+                @Override
+                String resolvedCallbackCredentialSummary() {
+                    throw new IllegalStateException("boom");
+                }
+            };
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+        BootLensRegistrationLifecycle lifecycle =
+            new BootLensRegistrationLifecycle(properties, throwingClient, executorService);
+
+        // onApplicationEvent ignores the event instance; passing null keeps the test light.
+        assertThatCode(() -> lifecycle.onApplicationEvent(null)).doesNotThrowAnyException();
+
+        executorService.shutdownNow();
+    }
+
+    @Test
     void shutdownDeregisterIsBestEffort() {
         BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
         properties.setInstanceId("bootlens-demo-local-9091");

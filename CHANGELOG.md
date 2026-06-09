@@ -10,11 +10,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
+- `BootLensRegistrationClient` now logs a one-time `WARN` when HTTP Basic registry
+  credentials are configured but the server URL uses plaintext `http://`, so credentials
+  travelling unencrypted are surfaced instead of silently sent.
 - Extended `SecretSanitizer.SENSITIVE_TERMS` with `url`, `dsn`, and `connection` to mask
   common connection-string environment variables (`DATABASE_URL`, `REDIS_URL`, `JDBC_URL`, etc.)
   that carry embedded credentials.
 
 ### Fixed
+- Startup registration is now fully exception-safe: `BootLensRegistrationLifecycle`
+  wraps `attemptRegistration` in a `try/catch` so an unexpected `RuntimeException` on the
+  `ApplicationReadyEvent` path can never propagate out of `SpringApplication.run()` and
+  break the host application's boot.
+- `AsyncProfilerService.shutdown()` is now `synchronized` and idempotent, so repeated or
+  concurrent bean-destruction calls no longer race with `start()`/`stop()`.
 - `demo.cache.backend` hard-coded demo property removed from `BootLensRegistrationClient`.
   The cache backend label is now read from `bootlens.client.registration.cache-backend`
   (or inferred from `spring.cache.type` as before).
@@ -34,6 +43,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   diagnostics are disabled.
 
 ### Changed
+- Health-indicator properties moved from `bootlens.client.health.*` to
+  `bootlens.client.monitoring.health.*` for consistency with the other monitors. The
+  legacy `bootlens.client.health.enabled` key still works as a deprecated alias via
+  `MonitoringPropertiesEnvironmentPostProcessor`.
 - `me.bechberger:ap-loader-all` dependency scope changed from `api` to `implementation`.
   Consumers no longer receive the async-profiler native library (≈50 MB) on their
   compile classpath transitively. If you reference `one.profiler.*` types directly,

@@ -39,6 +39,35 @@ class BootLensRegistrationClientTest {
     }
 
     @Test
+    void plaintextTransportWithCredentialsIsFlaggedOnlyForHttpUrls() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        properties.setUsername("registry-user");
+        properties.setPassword("registry-secret");
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            new MockEnvironment(),
+            new CapturingTransport(),
+            FIXED_CLOCK
+        );
+
+        assertThat(client.isPlaintextTransportWithCredentials("http://bootlens.internal:9090")).isTrue();
+        assertThat(client.isPlaintextTransportWithCredentials("https://bootlens.internal:9090")).isFalse();
+    }
+
+    @Test
+    void plaintextTransportIsNotFlaggedWithoutCredentials() {
+        BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
+        BootLensRegistrationClient client = new BootLensRegistrationClient(
+            properties,
+            new MockEnvironment(),
+            new CapturingTransport(),
+            FIXED_CLOCK
+        );
+
+        assertThat(client.isPlaintextTransportWithCredentials("http://bootlens.internal:9090")).isFalse();
+    }
+
+    @Test
     void stableInstanceIdUsesResolvedAppIdAndPort() {
         BootLensRegistrationProperties properties = new BootLensRegistrationProperties();
         properties.setAppId("bootlens-demo");

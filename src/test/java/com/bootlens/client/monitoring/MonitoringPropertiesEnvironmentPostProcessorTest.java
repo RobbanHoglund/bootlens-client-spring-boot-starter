@@ -40,6 +40,29 @@ class MonitoringPropertiesEnvironmentPostProcessorTest {
     }
 
     @Test
+    void mapsLegacyHealthPrefixToMonitoringHealthNamespace() {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("bootlens.client.health.enabled", "false");
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("bootlens.client.monitoring.health.enabled"))
+            .isEqualTo("false");
+    }
+
+    @Test
+    void newMonitoringHealthNamespaceWinsOverLegacyHealthAlias() {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("bootlens.client.monitoring.health.enabled", "true")
+            .withProperty("bootlens.client.health.enabled", "false");
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("bootlens.client.monitoring.health.enabled"))
+            .isEqualTo("true");
+    }
+
+    @Test
     void mapsEveryLegacyEnabledFlagToBootLensNamespace() {
         MockEnvironment environment = new MockEnvironment()
             .withProperty("memory.pressure.enabled", "false")

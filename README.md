@@ -1788,11 +1788,14 @@ supported by the 1.0.x line.
 
 Prefix:
 
-`bootlens.client.health`
+`bootlens.client.monitoring.health`
 
 | Property | Default | Notes |
 |---|---|---|
 | `enabled` | `true` | Set to `false` to disable the health indicator entirely |
+
+> The legacy prefix `bootlens.client.health` still works as an alias but is deprecated;
+> prefer `bootlens.client.monitoring.health` for consistency with the other monitors.
 
 The monitor health indicator aggregates the current pressure level from every active monitor
 into a single entry in `/actuator/health`. This is the only feature in the starter that can
@@ -1905,13 +1908,13 @@ management.endpoint.health.show-details=when-authorized
 Disabling a monitor (`bootlens.client.monitoring.memory-pressure.enabled=false`) removes it from health entirely — its
 level source is not registered and it contributes nothing to the aggregate status.
 
-Disabling the health indicator (`bootlens.client.health.enabled=false`) stops all monitor
+Disabling the health indicator (`bootlens.client.monitoring.health.enabled=false`) stops all monitor
 levels from affecting health, but the monitors themselves keep running and logging.
 
 To disable:
 
 ```properties
-bootlens.client.health.enabled=false
+bootlens.client.monitoring.health.enabled=false
 ```
 
 ## Endpoint Exposure

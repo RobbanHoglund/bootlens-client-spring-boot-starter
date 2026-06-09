@@ -39,6 +39,7 @@ public class BootLensRegistrationClient {
     private final RegistrationTransport transport;
     private final Clock clock;
     private volatile boolean callbackCredentialSummaryLogged;
+    private volatile boolean insecureTransportWarningLogged;
 
     public BootLensRegistrationClient(
         BootLensRegistrationProperties properties,
@@ -62,6 +63,7 @@ public class BootLensRegistrationClient {
     RegistrationCallResult register() {
         BootLensResolvedRegistration registration = resolveRegistration();
         logCallbackCredentialSummary(registration, "register");
+        warnIfCredentialsSentOverPlaintext(registration.serverUrl());
         String url = registration.serverUrl() + "/api/registry/instances";
         return execute("register", registration.instanceId(), () -> transport.post(url, toJson(registration.toRegistrationRequest()), authorizationHeader()));
     }
@@ -137,6 +139,33 @@ public class BootLensRegistrationClient {
             firstNonBlank(registration.actuatorUsername(), "(missing)"),
             registration.actuatorPassword() != null
         );
+    }
+
+    private void warnIfCredentialsSentOverPlaintext(String serverUrl) {
+        if (insecureTransportWarningLogged) {
+            return;
+        }
+        if (!isPlaintextTransportWithCredentials(serverUrl)) {
+            return;
+        }
+        insecureTransportWarningLogged = true;
+        log.warn(
+            "BootLens is sending HTTP Basic credentials to {} over a plaintext connection; "
+                + "use an https:// server URL (bootlens.client.registration.server-url) to protect them.",
+            serverUrl
+        );
+    }
+
+    /**
+     * Returns {@code true} when registry credentials are configured but the server URL
+     * uses plaintext {@code http://}, meaning the credentials would travel unencrypted.
+     */
+    boolean isPlaintextTransportWithCredentials(String serverUrl) {
+        if (authorizationHeader() == null) {
+            return false;
+        }
+        String normalized = serverUrl == null ? "" : serverUrl.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("http://");
     }
 
     /**

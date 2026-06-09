@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @ConditionalOnClass(name = "org.springframework.boot.health.contributor.HealthIndicator")
 @EnableConfigurationProperties(BootLensMonitorHealthProperties.class)
-@ConditionalOnProperty(prefix = "bootlens.client.health", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bootlens.client.monitoring.health", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class BootLensMonitorHealthAutoConfiguration {
 
     @Bean

@@ -336,7 +336,10 @@ public class AsyncProfilerService {
         return target;
     }
 
-    public void shutdown() {
+    public synchronized void shutdown() {
+        if (scheduler.isShutdown()) {
+            return;
+        }
         scheduler.shutdownNow();
     }
 

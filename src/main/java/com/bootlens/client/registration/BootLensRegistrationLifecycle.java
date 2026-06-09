@@ -110,27 +110,36 @@ class BootLensRegistrationLifecycle implements ApplicationListener<ApplicationRe
     }
 
     private void attemptRegistration(String source) {
-        log.info(
-            "BootLens {} registration attempt for {} with {}",
-            source,
-            registrationClient.resolvedInstanceId(),
-            registrationClient.resolvedCallbackCredentialSummary()
-        );
-        RegistrationCallResult result = registrationClient.register();
-        if (result.success()) {
-            registered = true;
-            clearFailureState();
+        try {
             log.info(
-                "BootLens {} registration is active for {} via {}.",
+                "BootLens {} registration attempt for {} with {}",
                 source,
                 registrationClient.resolvedInstanceId(),
-                registrationClient.heartbeatPath()
+                registrationClient.resolvedCallbackCredentialSummary()
             );
-            return;
-        }
+            RegistrationCallResult result = registrationClient.register();
+            if (result.success()) {
+                registered = true;
+                clearFailureState();
+                log.info(
+                    "BootLens {} registration is active for {} via {}.",
+                    source,
+                    registrationClient.resolvedInstanceId(),
+                    registrationClient.heartbeatPath()
+                );
+                return;
+            }
 
-        registered = false;
-        logFailure("registration", result.message());
+            registered = false;
+            logFailure("registration", result.message());
+        }
+        catch (RuntimeException exception) {
+            // A registration failure must never break the host application. The
+            // startup path runs inside an ApplicationReadyEvent listener where an
+            // escaping exception would propagate out of SpringApplication.run().
+            registered = false;
+            logFailure("registration", exception.getMessage());
+        }
     }
 
     private void logFailure(String action, String message) {

@@ -1,6 +1,7 @@
 package com.bootlens.client.profiling;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -50,6 +51,16 @@ class AsyncProfilerServiceTest {
         else {
             System.setProperty(key, value);
         }
+    }
+
+    @Test
+    void shutdownIsIdempotentAndThreadSafe() {
+        // shutdown() may be invoked by Spring's bean destruction more than once and must
+        // never throw on an already-stopped scheduler. tearDown() calls it a third time.
+        assertThatCode(() -> {
+            service.shutdown();
+            service.shutdown();
+        }).doesNotThrowAnyException();
     }
 
     // --- Status when profiler is unavailable (e.g. Windows CI) ---
