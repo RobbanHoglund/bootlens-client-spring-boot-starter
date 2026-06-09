@@ -1,5 +1,43 @@
 # BootLens Client Spring Boot Starter
 
+A Spring Boot starter that registers your application with BootLens Server and exposes
+rich JVM diagnostics, runtime monitors, and an embedded async-profiler through Actuator endpoints.
+
+## Table of Contents
+
+**Getting started**
+- [Purpose](#purpose)
+- [Current Scope](#current-scope)
+- [Requirements](#requirements)
+- [Quick Start For Consumers](#quick-start-for-consumers)
+- [Local Development Usage](#local-development-usage)
+
+**Configuration reference**
+- [Diagnostics Properties](#diagnostics-properties)
+- [Registration Properties](#registration-properties)
+- [Railway Auto-Configuration](#railway-auto-configuration)
+
+**Monitors**
+- [Memory Pressure Properties](#memory-pressure-properties)
+- [File Descriptor Properties](#file-descriptor-properties)
+- [GC Pressure Properties](#gc-pressure-properties)
+- [Direct Memory Properties](#direct-memory-properties)
+- [Thread Deadlock Properties](#thread-deadlock-properties)
+- [Log Error Rate Properties](#log-error-rate-properties)
+- [Metaspace Properties](#metaspace-properties)
+- [Monitor Health Indicator](#monitor-health-indicator)
+
+**Profiling & operations**
+- [Async Profiler](#async-profiler)
+- [Endpoint Exposure](#endpoint-exposure)
+- [Example curl Commands](#example-curl-commands)
+- [Runtime Side Effects](#runtime-side-effects)
+- [Safety Notes](#safety-notes)
+
+**For maintainers**
+- [Building And Releasing](#building-and-releasing-for-maintainers)
+- [License](#license)
+
 ## Purpose
 
 `bootlens-client-spring-boot-starter` adds BootLens-specific actuator diagnostics to a Spring Boot application.
@@ -32,11 +70,6 @@ Planned later:
 - deeper thread analysis
 - safe runtime operations
 
-## License
-
-This repository is published under the Apache License 2.0. See
-[LICENSE](./LICENSE).
-
 ## Requirements
 
 - Java 25
@@ -45,99 +78,6 @@ This repository is published under the Apache License 2.0. See
 
 This starter is built and tested against the Spring Boot 4.0.6 BOM with a Java 25 toolchain.
 Spring Boot 3.x is not supported by the 1.0.x line.
-
-## Build And Run Locally
-
-```bash
-cd /path/to/bootlens-client-spring-boot-starter
-./gradlew test
-./gradlew build
-```
-
-## Versioning And Publishing To GitHub Packages
-
-The starter can now be published as a versioned Maven package to GitHub
-Packages.
-
-### Coordinates
-
-- Group: `com.bootlens`
-- Artifact: `bootlens-client-spring-boot-starter`
-- Version: controlled by `-PbootlensVersion=...` or `BOOTLENS_VERSION`
-
-### Local publish command
-
-From the repo root:
-
-```powershell
-$env:GITHUB_ACTOR = '<your-github-username>'
-$env:GITHUB_TOKEN = '<your-github-packages-token>'
-$env:BOOTLENS_VERSION = '0.1.0'
-.\gradlew.bat publish `
-  -PgithubPackagesOwner=<github-owner> `
-  -PgithubPackagesRepository=bootlens-client-spring-boot-starter
-```
-
-Notes:
-
-- `GITHUB_TOKEN` must be able to write packages
-- the package is published to:
-  `https://maven.pkg.github.com/<github-owner>/<github-repository>`
-- if the repo is being built inside GitHub Actions, owner and repository can be
-  inferred automatically from the workflow environment
-
-### Publish from GitHub Actions
-
-This repo now includes:
-
-- [.github/workflows/release-client-starter.yml](./.github/workflows/release-client-starter.yml)
-- [.github/workflows/publish-github-packages.yml](./.github/workflows/publish-github-packages.yml)
-
-Supported publish paths:
-
-1. manual release workflow that creates and pushes a tag
-2. pushing a tag such as `v0.1.0` or `v0.1.0-rc1`
-
-Recommended release flow:
-
-1. merge the intended code to `main`
-2. run `Release BootLens client starter`
-3. enter a version such as `0.1.0` or `0.1.0-rc1`
-4. the workflow runs tests
-5. the workflow publishes the package to GitHub Packages
-6. the workflow creates and pushes tag `v<version>`
-7. the workflow creates a GitHub Release for the same tag
-
-Why the manual release workflow publishes directly:
-
-- tags pushed by a GitHub Actions workflow using the default `GITHUB_TOKEN`
-  do not reliably trigger a second workflow for this kind of chained release
-  flow
-- therefore the release workflow itself performs the package publish
-- the tag-based publish workflow still exists as a fallback path for tags pushed
-  outside the workflow, for example from a developer machine
-
-The manual release workflow:
-
-1. checks out the repo
-2. sets up Java 25
-3. runs `./gradlew test`
-4. publishes with `./gradlew publish -PbootlensVersion=<resolved-version>`
-5. creates and pushes `v<version>`
-6. creates a GitHub Release with generated notes if one does not already exist
-
-Important:
-
-- a normal push to `main` does **not** publish a package
-- the package is published only from version tags
-- the manual release workflow exists so you do not have to create the tag locally
-
-### Publish to Maven local for quick verification
-
-```powershell
-$env:BOOTLENS_VERSION = '0.1.0-rc1'
-.\gradlew.bat publishToMavenLocal
-```
 
 ## Quick Start For Consumers
 
@@ -2023,3 +1963,100 @@ All registration and heartbeat calls are best-effort: BootLens Server unavailabi
 - Heap dump download is only available for heap dumps created by BootLens and only when `bootlens.client.diagnostics.heap-dump.allow-download=true`.
 - The starter does not change standard Spring Boot Actuator behavior for existing endpoints.
 - **Always use HTTPS** for `bootlens.client.registration.server-url` in production. Registration payloads include the `actuator-password` credential and must not be sent over unencrypted HTTP.
+
+## Building And Releasing (For Maintainers)
+
+This section is for maintainers of the starter itself. Consumers only need the
+[Quick Start For Consumers](#quick-start-for-consumers) above.
+
+### Build and run locally
+
+```bash
+cd /path/to/bootlens-client-spring-boot-starter
+./gradlew test
+./gradlew build
+```
+
+### Coordinates
+
+- Group: `com.bootlens`
+- Artifact: `bootlens-client-spring-boot-starter`
+- Version: controlled by `-PbootlensVersion=...` or `BOOTLENS_VERSION`
+
+### Local publish command
+
+From the repo root:
+
+```powershell
+$env:GITHUB_ACTOR = '<your-github-username>'
+$env:GITHUB_TOKEN = '<your-github-packages-token>'
+$env:BOOTLENS_VERSION = '0.1.0'
+.\gradlew.bat publish `
+  -PgithubPackagesOwner=<github-owner> `
+  -PgithubPackagesRepository=bootlens-client-spring-boot-starter
+```
+
+Notes:
+
+- `GITHUB_TOKEN` must be able to write packages
+- the package is published to:
+  `https://maven.pkg.github.com/<github-owner>/<github-repository>`
+- if the repo is being built inside GitHub Actions, owner and repository can be
+  inferred automatically from the workflow environment
+
+### Publish from GitHub Actions
+
+This repo includes:
+
+- [.github/workflows/release-client-starter.yml](./.github/workflows/release-client-starter.yml)
+- [.github/workflows/publish-github-packages.yml](./.github/workflows/publish-github-packages.yml)
+
+Supported publish paths:
+
+1. manual release workflow that creates and pushes a tag
+2. pushing a tag such as `v0.1.0` or `v0.1.0-rc1`
+
+Recommended release flow:
+
+1. merge the intended code to `main`
+2. run `Release BootLens client starter`
+3. enter a version such as `0.1.0` or `0.1.0-rc1`
+4. the workflow runs tests
+5. the workflow publishes the package to GitHub Packages
+6. the workflow creates and pushes tag `v<version>`
+7. the workflow creates a GitHub Release for the same tag
+
+Why the manual release workflow publishes directly:
+
+- tags pushed by a GitHub Actions workflow using the default `GITHUB_TOKEN`
+  do not reliably trigger a second workflow for this kind of chained release
+  flow
+- therefore the release workflow itself performs the package publish
+- the tag-based publish workflow still exists as a fallback path for tags pushed
+  outside the workflow, for example from a developer machine
+
+The manual release workflow:
+
+1. checks out the repo
+2. sets up Java 25
+3. runs `./gradlew test`
+4. publishes with `./gradlew publish -PbootlensVersion=<resolved-version>`
+5. creates and pushes `v<version>`
+6. creates a GitHub Release with generated notes if one does not already exist
+
+Important:
+
+- a normal push to `main` does **not** publish a package
+- the package is published only from version tags
+- the manual release workflow exists so you do not have to create the tag locally
+
+### Publish to Maven local for quick verification
+
+```powershell
+$env:BOOTLENS_VERSION = '0.1.0-rc1'
+.\gradlew.bat publishToMavenLocal
+```
+
+## License
+
+This repository is published under the Apache License 2.0. See [LICENSE](./LICENSE).
