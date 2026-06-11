@@ -2,7 +2,7 @@ plugins {
 	id 'java-library'
 	// Applies maven-publish + signing and wires the Sonatype Central Portal.
 	// Check for the latest plugin version before publishing.
-	id 'com.vanniktech.maven.publish' version '0.30.0'
+	id 'com.vanniktech.maven.publish' version '0.36.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
