@@ -43,6 +43,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   diagnostics are disabled.
 
 ### Changed
+- **Breaking (distribution):** the artifact is now published to **Maven Central** instead
+  of GitHub Packages, and its group id changed from `com.bootlens` to
+  `io.github.robbanhoglund`. Update the dependency to
+  `io.github.robbanhoglund:bootlens-client-spring-boot-starter:<version>` and remove any
+  GitHub Packages repository block — Maven Central needs no repository or credentials.
+  Publishing now uses the `com.vanniktech.maven.publish` plugin and the Sonatype Central
+  Portal; the `publish-github-packages.yml` workflow was removed.
 - Health-indicator properties moved from `bootlens.client.health.*` to
   `bootlens.client.monitoring.health.*` for consistency with the other monitors. The
   legacy `bootlens.client.health.enabled` key still works as a deprecated alias via
