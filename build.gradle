@@ -35,6 +35,9 @@ dependencies {
 	implementation 'me.bechberger:ap-loader-all:4.4-13'
 	compileOnly 'org.springframework:spring-web'
 	compileOnly 'jakarta.servlet:jakarta.servlet-api'
+	// On the Javadoc classpath only, so javac can resolve @JsonInclude on referenced
+	// Spring types and not emit "unknown enum constant Include.NON_EMPTY" notes.
+	compileOnly 'com.fasterxml.jackson.core:jackson-annotations'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -54,6 +57,14 @@ tasks.named('test') {
 
 tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs += ['-parameters']
+}
+
+tasks.withType(Javadoc).configureEach {
+	// The published Javadoc jar is a Maven Central requirement, not primary docs.
+	// Disable doclint so missing @param/@return/comments don't flood the build, and
+	// quiet the unrelated "unknown enum constant" notes from annotations that are not
+	// on the Javadoc classpath (e.g. Jackson's @JsonInclude).
+	options.addStringOption('Xdoclint:none', '-quiet')
 }
 
 mavenPublishing {
