@@ -3,11 +3,53 @@
 A Spring Boot starter that registers your application with BootLens Server and exposes
 rich JVM diagnostics, runtime monitors, and an embedded async-profiler through Actuator endpoints.
 
+## Connect in under a minute
+
+**1.** Add the dependency — it's on Maven Central:
+
+```gradle
+implementation "io.github.robbanhoglund:bootlens-client-spring-boot-starter:1.0.0"
+```
+
+**2.** Tell the client where BootLens Server is, **and** tell BootLens Server how to reach back:
+
+```properties
+# app → BootLens Server: where to register
+bootlens.client.registration.server-url=https://your-bootlens-server.example
+bootlens.client.registration.username=registrant
+bootlens.client.registration.password=${BOOTLENS_REGISTRANT_PASSWORD}
+
+# BootLens Server → app: the callback URL it uses to read your actuator
+bootlens.client.registration.base-url=https://your-app.example
+bootlens.client.registration.actuator-base-url=https://your-app.example/actuator
+```
+
+**3.** Expose the actuator endpoints BootLens reads, and start your app:
+
+```properties
+management.endpoints.web.exposure.include=health,info,bootlensDiagnostics
+```
+
+That's it — **no code, no annotations.** On startup the client registers with BootLens Server
+and sends heartbeats; BootLens Server then calls back to your `actuator-base-url` to read
+diagnostics. App id, instance id, ports, and environment are all derived sensibly and can be
+overridden. Registration is best-effort, so a BootLens outage never breaks your app's boot.
+
+> **Both directions matter.** Registration (app → server) only tells BootLens that your app
+> exists. BootLens still has to reach *back* to `actuator-base-url` (server → app) to monitor it,
+> so that URL must be one BootLens Server can actually resolve and call — not `localhost` in a
+> hosted environment. If your actuator endpoints are protected (recommended in production), also
+> set `actuator-username` / `actuator-password` — see the
+> [production security model](#3c-recommended-production-actuator-security-model).
+
+→ Full walkthrough with private-network and Railway examples: [Quick Start For Consumers](#quick-start-for-consumers).
+
 ## Table of Contents
 
 **Getting started**
+- [Connect in under a minute](#connect-in-under-a-minute)
 - [Purpose](#purpose)
-- [Current Scope](#current-scope)
+- [What you get](#what-you-get)
 - [Requirements](#requirements)
 - [Quick Start For Consumers](#quick-start-for-consumers)
 - [Local Development Usage](#local-development-usage)
@@ -44,7 +86,7 @@ rich JVM diagnostics, runtime monitors, and an embedded async-profiler through A
 The first implementation provides a custom `bootlensDiagnostics` actuator endpoint that exposes richer JVM diagnostics backed by the platform `MBeanServer` and the HotSpot `DiagnosticCommand` MBean when available.
 It also auto-registers the application with BootLens Server and sends periodic heartbeats by default.
 
-## Current Scope
+## What you get
 
 - Custom BootLens actuator endpoint
 - Conservative defaults for sensitive and expensive diagnostics
