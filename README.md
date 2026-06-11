@@ -74,64 +74,41 @@ Planned later:
 
 - Java 25
 - Spring Boot 4.x
-- A build that can authenticate to GitHub Packages when consuming the published artifact
+
+The artifact is published to Maven Central, so no extra repository configuration or
+credentials are required to consume it.
 
 This starter is built and tested against the Spring Boot 4.0.6 BOM with a Java 25 toolchain.
 Spring Boot 3.x is not supported by the 1.0.x line.
 
 ## Quick Start For Consumers
 
-If you just want to get a client connected quickly, follow the five steps in
+If you just want to get a client connected quickly, follow the four steps in
 this section first. The later sections are a fuller reference for properties,
 operations, and safety behavior.
 
-### 1. Add the GitHub Packages repository
+### 1. Add the dependency
 
-```gradle
-repositories {
-    maven {
-        url = uri("https://maven.pkg.github.com/<github-owner>/bootlens-client-spring-boot-starter")
-        credentials {
-            username = findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-            password = findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
-        }
-    }
-    mavenCentral()
-}
-```
-
-GitHub Packages consumption may still require credentials even when this source
-repository is public. For friction-free anonymous Java dependency consumption,
-Maven Central would be the better long-term distribution target.
-
-### 2. Add the dependency
+The artifact is on Maven Central, so as long as your build already declares
+`mavenCentral()` (the Spring Boot defaults do), no repository configuration or
+credentials are needed:
 
 ```gradle
 dependencies {
-    implementation "com.bootlens:bootlens-client-spring-boot-starter:0.1.0"
+    implementation "io.github.robbanhoglund:bootlens-client-spring-boot-starter:1.0.0"
 }
 ```
 
-Use the package version, for example `0.1.0` or `0.1.0-rc2`. Do not use the
+Use the released version, for example `1.0.0` or `1.0.0-rc2`. Do not use the
 Git tag form with the `v` prefix.
 
-If you want the build to avoid hardcoded secrets, prefer:
-
-- `GITHUB_ACTOR`
-- `GITHUB_TOKEN`
-
-or Gradle properties:
-
-- `gpr.user`
-- `gpr.key`
-
-### 3. Expose the required actuator endpoints
+### 2. Expose the required actuator endpoints
 
 ```properties
 management.endpoints.web.exposure.include=health,info,metrics,loggers,threaddump,bootlensDiagnostics
 ```
 
-### 4. Configure BootLens registration
+### 3. Configure BootLens registration
 
 Registration is enabled by default. When the starter is on the classpath, the
 client attempts registration on application readiness and then sends periodic
@@ -163,7 +140,7 @@ bootlens.client.registration.environment=prod
 For the full registration property reference, defaults, and behavior notes, see
 [Registration Properties](#registration-properties) below.
 
-### 4a. Example: app and BootLens inside the same private Railway network
+### 3a. Example: app and BootLens inside the same private Railway network
 
 ```properties
 bootlens.client.registration.enabled=true
@@ -181,7 +158,7 @@ bootlens.client.registration.environment=prod
 Use an internal `server-url` only when the monitored application can actually
 resolve and reach that internal BootLens hostname.
 
-### 4b. Example: app outside the BootLens private network
+### 3b. Example: app outside the BootLens private network
 
 ```properties
 bootlens.client.registration.enabled=true
@@ -199,7 +176,7 @@ bootlens.client.registration.environment=prod
 Use the public BootLens URL when the monitored application is not inside the
 same private network as the BootLens server.
 
-### 4c. Recommended production actuator security model
+### 3c. Recommended production actuator security model
 
 This is the recommended model for all BootLens-monitored applications in
 production, including BootLens Server when it monitors itself.
@@ -263,7 +240,7 @@ check these things in order:
 5. BootLens server received and stored those credentials for the registered
    instance
 
-### 5. Start the application and verify registration
+### 4. Start the application and verify registration
 
 When the application becomes ready, the starter:
 
@@ -1977,85 +1954,78 @@ cd /path/to/bootlens-client-spring-boot-starter
 ./gradlew build
 ```
 
+Publishing uses the [`com.vanniktech.maven.publish`](https://vanniktech.github.io/gradle-maven-publish-plugin/)
+plugin, which signs the artifacts and uploads them to the Sonatype Central Portal
+(Maven Central).
+
 ### Coordinates
 
-- Group: `com.bootlens`
+- Group: `io.github.robbanhoglund`
 - Artifact: `bootlens-client-spring-boot-starter`
 - Version: controlled by `-PbootlensVersion=...` or `BOOTLENS_VERSION`
 
-### Local publish command
+### Required credentials
 
-From the repo root:
+Publishing needs a Central Portal user token and a GPG signing key. Supply them as
+Gradle properties or `ORG_GRADLE_PROJECT_*` environment variables — never commit them:
 
-```powershell
-$env:GITHUB_ACTOR = '<your-github-username>'
-$env:GITHUB_TOKEN = '<your-github-packages-token>'
-$env:BOOTLENS_VERSION = '0.1.0'
-.\gradlew.bat publish `
-  -PgithubPackagesOwner=<github-owner> `
-  -PgithubPackagesRepository=bootlens-client-spring-boot-starter
-```
-
-Notes:
-
-- `GITHUB_TOKEN` must be able to write packages
-- the package is published to:
-  `https://maven.pkg.github.com/<github-owner>/<github-repository>`
-- if the repo is being built inside GitHub Actions, owner and repository can be
-  inferred automatically from the workflow environment
-
-### Publish from GitHub Actions
-
-This repo includes:
-
-- [.github/workflows/release-client-starter.yml](./.github/workflows/release-client-starter.yml)
-- [.github/workflows/publish-github-packages.yml](./.github/workflows/publish-github-packages.yml)
-
-Supported publish paths:
-
-1. manual release workflow that creates and pushes a tag
-2. pushing a tag such as `v0.1.0` or `v0.1.0-rc1`
-
-Recommended release flow:
-
-1. merge the intended code to `main`
-2. run `Release BootLens client starter`
-3. enter a version such as `0.1.0` or `0.1.0-rc1`
-4. the workflow runs tests
-5. the workflow publishes the package to GitHub Packages
-6. the workflow creates and pushes tag `v<version>`
-7. the workflow creates a GitHub Release for the same tag
-
-Why the manual release workflow publishes directly:
-
-- tags pushed by a GitHub Actions workflow using the default `GITHUB_TOKEN`
-  do not reliably trigger a second workflow for this kind of chained release
-  flow
-- therefore the release workflow itself performs the package publish
-- the tag-based publish workflow still exists as a fallback path for tags pushed
-  outside the workflow, for example from a developer machine
-
-The manual release workflow:
-
-1. checks out the repo
-2. sets up Java 25
-3. runs `./gradlew test`
-4. publishes with `./gradlew publish -PbootlensVersion=<resolved-version>`
-5. creates and pushes `v<version>`
-6. creates a GitHub Release with generated notes if one does not already exist
-
-Important:
-
-- a normal push to `main` does **not** publish a package
-- the package is published only from version tags
-- the manual release workflow exists so you do not have to create the tag locally
+| Credential | Gradle property | Purpose |
+|---|---|---|
+| Central Portal token (username) | `mavenCentralUsername` | Authenticates to the Central Portal |
+| Central Portal token (password) | `mavenCentralPassword` | Authenticates to the Central Portal |
+| GPG private key (ASCII-armored) | `signingInMemoryKey` | Signs the artifacts |
+| GPG key passphrase | `signingInMemoryKeyPassword` | Unlocks the signing key |
 
 ### Publish to Maven local for quick verification
+
+This needs no credentials and does not sign:
 
 ```powershell
 $env:BOOTLENS_VERSION = '0.1.0-rc1'
 .\gradlew.bat publishToMavenLocal
 ```
+
+### Local publish to Maven Central
+
+From the repo root, with the four credentials set as environment variables:
+
+```powershell
+$env:ORG_GRADLE_PROJECT_mavenCentralUsername = '<central-portal-token-user>'
+$env:ORG_GRADLE_PROJECT_mavenCentralPassword = '<central-portal-token-pass>'
+$env:ORG_GRADLE_PROJECT_signingInMemoryKey = '<ascii-armored-gpg-private-key>'
+$env:ORG_GRADLE_PROJECT_signingInMemoryKeyPassword = '<gpg-key-passphrase>'
+$env:BOOTLENS_VERSION = '1.0.0'
+.\gradlew.bat publishToMavenCentral -PbootlensVersion=$env:BOOTLENS_VERSION
+```
+
+`publishToMavenCentral` uploads a deployment that you then review and release
+manually at [central.sonatype.com](https://central.sonatype.com). Use
+`publishAndReleaseToMavenCentral` to upload and release in one step.
+
+### Publish from GitHub Actions
+
+The [`Release BootLens client starter`](./.github/workflows/release-client-starter.yml)
+workflow (manual `workflow_dispatch`) is the single release path. It expects these
+repository secrets:
+
+- `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` — Central Portal user token
+- `SIGNING_KEY` — ASCII-armored GPG private key
+- `SIGNING_KEY_PASSWORD` — passphrase for that key
+
+Recommended release flow:
+
+1. merge the intended code to `main`
+2. run `Release BootLens client starter` and enter a version such as `1.0.0` or `1.0.0-rc1`
+3. the workflow runs tests, then `publishToMavenCentral`
+4. it pushes tag `v<version>` and creates a matching GitHub Release
+5. review and release the deployment at [central.sonatype.com](https://central.sonatype.com)
+
+Important:
+
+- a normal push to `main` does **not** publish anything
+- publishing happens only from the manual release workflow
+- the uploaded deployment is **not** live on Maven Central until you release it in
+  the Central Portal (unless the workflow is switched to `publishAndReleaseToMavenCentral`)
 
 ## License
 

@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   tag-release:
@@ -70,14 +69,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
 
-      - name: Publish to GitHub Packages
+      - name: Publish to Maven Central
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
           BOOTLENS_VERSION: ${{ steps.version.outputs.version }}
-        run: ./gradlew publish -PbootlensVersion=${BOOTLENS_VERSION}
+        # Uploads a signed deployment to the Sonatype Central Portal. The deployment
+        # is left in the "validated" state for manual review and release at
+        # https://central.sonatype.com. Switch to publishAndReleaseToMavenCentral to
+        # release automatically.
+        run: ./gradlew publishToMavenCentral -PbootlensVersion=${BOOTLENS_VERSION}
 
       - name: Push release tag
         shell: bash
@@ -106,6 +109,7 @@ jobs:
             echo ""
             echo "- Version: \`${{ steps.version.outputs.version }}\`"
             echo "- Tag: \`${{ steps.version.outputs.tag }}\`"
-            echo "- Package: \`com.bootlens:bootlens-client-spring-boot-starter:${{ steps.version.outputs.version }}\`"
+            echo "- Artifact: \`io.github.robbanhoglund:bootlens-client-spring-boot-starter:${{ steps.version.outputs.version }}\`"
+            echo "- Maven Central: deployment uploaded to the Sonatype Central Portal (release manually at https://central.sonatype.com)"
             echo "- GitHub Release: created or reused for tag \`${{ steps.version.outputs.tag }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
