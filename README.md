@@ -2020,11 +2020,13 @@ Gradle properties or `ORG_GRADLE_PROJECT_*` environment variables — never comm
 
 ### Publish to Maven local for quick verification
 
-This needs no credentials and does not sign:
+This needs no credentials. The build intentionally skips GPG signatures for
+`publishToMavenLocal` so the local smoke test can run without Central Portal
+secrets:
 
 ```powershell
 $env:BOOTLENS_VERSION = '0.1.0-rc1'
-.\gradlew.bat publishToMavenLocal
+.\gradlew.bat clean publishToMavenLocal
 ```
 
 ### Local publish to Maven Central
@@ -2037,7 +2039,7 @@ $env:ORG_GRADLE_PROJECT_mavenCentralPassword = '<central-portal-token-pass>'
 $env:ORG_GRADLE_PROJECT_signingInMemoryKey = '<ascii-armored-gpg-private-key>'
 $env:ORG_GRADLE_PROJECT_signingInMemoryKeyPassword = '<gpg-key-passphrase>'
 $env:BOOTLENS_VERSION = '1.0.0'
-.\gradlew.bat publishToMavenCentral -PbootlensVersion=$env:BOOTLENS_VERSION
+.\gradlew.bat publishToMavenCentral "-PbootlensVersion=$env:BOOTLENS_VERSION"
 ```
 
 `publishToMavenCentral` uploads a deployment that you then review and release

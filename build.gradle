@@ -11,6 +11,15 @@ version = findProperty('bootlensVersion') ?: System.getenv('BOOTLENS_VERSION') ?
 description = 'BootLens client Spring Boot starter'
 
 def githubProjectUrl = 'https://github.com/RobbanHoglund/bootlens-client-spring-boot-starter'
+def requestedTaskNames = gradle.startParameter.taskNames.collect { it.toLowerCase() }
+def publishingToMavenLocal = requestedTaskNames.any {
+	it == 'publishtomavenlocal' ||
+		it.endsWith(':publishtomavenlocal') ||
+		it == 'publishmavenpublicationtomavenlocal' ||
+		it.endsWith(':publishmavenpublicationtomavenlocal')
+}
+def publishingToMavenCentral = requestedTaskNames.any { it.contains('mavencentral') }
+def shouldSignPublications = !publishingToMavenLocal || publishingToMavenCentral
 
 java {
 	toolchain {
@@ -46,8 +55,11 @@ dependencies {
 }
 
 processResources {
+	inputs.property('bootlensClientVersion', project.version.toString())
+	inputs.property('bootlensClientArtifact', project.name)
+
 	filesMatching('META-INF/bootlens-client.properties') {
-		expand(version: project.version, artifact: project.name)
+		expand(version: project.version.toString(), artifact: project.name)
 	}
 }
 
@@ -74,7 +86,9 @@ mavenPublishing {
 	//   mavenCentralUsername / mavenCentralPassword       (Central Portal user token)
 	//   signingInMemoryKey / signingInMemoryKeyPassword   (or the signing.* gpg props)
 	publishToMavenCentral()
-	signAllPublications()
+	if (shouldSignPublications) {
+		signAllPublications()
+	}
 
 	coordinates(project.group.toString(), project.name, project.version.toString())
 

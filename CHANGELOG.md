@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [1.0.0] — 2026-06-11
+
 ### Security
 - `BootLensRegistrationClient` now logs a one-time `WARN` when HTTP Basic registry
   credentials are configured but the server URL uses plaintext `http://`, so credentials
